@@ -18,10 +18,22 @@ class TubesLab {
     this.modeIndex = 1;         // 1, 2, 3, 4, 5 (1 = fundamental)
     this.amplitude = 0.04;      // Amplitud de oscilación normalizada
     this.time = 0;              // Tiempo de simulación (s)
-    this.timeSpeed = 1.0;       // Escala de tiempo para animación
+    this.timeSpeed = 0.5;       // Escala de velocidad visual (0.5x recomendada por defecto)
 
-    // Estado de animación
-    this.isPlaying = true;
+    // Valores discretos del slider de velocidad de animación
+    this.speedPresets = [0.1, 0.25, 0.5, 1.0, 1.5, 2.0];
+    this.speedLabels = ['0.1x', '0.25x', '0.5x', '1.0x', '1.5x', '2.0x'];
+    this.speedTitles = [
+      '0.1x: Extremadamente lento',
+      '0.25x: Muy lento',
+      '0.5x: Lento (Recomendado)',
+      '1.0x: Velocidad normal',
+      '1.5x: Rápido',
+      '2.0x: Muy rápido'
+    ];
+
+    // Estado de animación: INICIA SIEMPRE PAUSADO
+    this.isPlaying = false;
     this._animLoopRunning = false;
     this._rafId = null;
     this._lastTimestamp = 0;
@@ -92,34 +104,37 @@ class TubesLab {
    * Tubo Cerrado-Abierto (Cerrado en x=0): Nodo de xi en x=0 -> sin(n*pi*x / (2L))
    */
   getDisplacement(x, t = this.time) {
-    const n = this.harmonicNumber;
-    const omega = 2 * Math.PI * this.frequency;
     const k = (2 * Math.PI) / this.wavelength;
+    const baseVisualFreq = 0.75;
+    const harmonicScale = Math.min(2.5, 1 + (this.modeIndex - 1) * 0.35);
+    const omegaVisual = 2 * Math.PI * baseVisualFreq * harmonicScale;
 
     if (this.tubeType === 'open-open') {
-      // xi(x,t) = A * cos(k * x) * cos(omega * t)
-      return this.amplitude * Math.cos(k * x) * Math.cos(omega * t);
+      // xi(x,t) = A * cos(k * x) * cos(omegaVisual * t)
+      return this.amplitude * Math.cos(k * x) * Math.cos(omegaVisual * t);
     } else {
       // Cerrado en x=0: xi(0) = 0
-      return this.amplitude * Math.sin(k * x) * Math.cos(omega * t);
+      return this.amplitude * Math.sin(k * x) * Math.cos(omegaVisual * t);
     }
   }
 
   /**
-   * Variación de presión acústica Delta P(x, t) proprocional a -d(xi)/dx
+   * Variación de presión acústica Delta P(x, t) proporcional a -d(xi)/dx
    * Tubo Abierto-Abierto: Nodo de presión en x=0 y x=L -> sin(k*x)
    * Tubo Cerrado-Abierto: Antinodo de presión en x=0 (cerrado), Nodo en x=L -> cos(k*x)
    */
   getPressure(x, t = this.time) {
-    const omega = 2 * Math.PI * this.frequency;
     const k = (2 * Math.PI) / this.wavelength;
+    const baseVisualFreq = 0.75;
+    const harmonicScale = Math.min(2.5, 1 + (this.modeIndex - 1) * 0.35);
+    const omegaVisual = 2 * Math.PI * baseVisualFreq * harmonicScale;
 
     if (this.tubeType === 'open-open') {
-      // d/dx [cos(k*x)] = -k*sin(k*x) => Delta P = A * sin(k*x) * cos(omega*t)
-      return this.amplitude * Math.sin(k * x) * Math.cos(omega * t);
+      // d/dx [cos(k*x)] = -k*sin(k*x) => Delta P = A * sin(k*x) * cos(omegaVisual * t)
+      return this.amplitude * Math.sin(k * x) * Math.cos(omegaVisual * t);
     } else {
-      // d/dx [sin(k*x)] = k*cos(k*x) => Delta P = A * cos(k*x) * cos(omega*t)
-      return this.amplitude * Math.cos(k * x) * Math.cos(omega * t);
+      // d/dx [sin(k*x)] = k*cos(k*x) => Delta P = A * cos(k*x) * cos(omegaVisual * t)
+      return this.amplitude * Math.cos(k * x) * Math.cos(omegaVisual * t);
     }
   }
 
@@ -178,6 +193,7 @@ class TubesLab {
   }
 
   destroy() {
+    this.isPlaying = false;
     this._animLoopRunning = false;
     if (this._rafId) {
       cancelAnimationFrame(this._rafId);
@@ -224,13 +240,13 @@ class TubesLab {
   _loop(timestamp) {
     if (!this._animLoopRunning) return;
 
+    if (!this._lastTimestamp) this._lastTimestamp = timestamp;
     const dt = Math.min(0.06, (timestamp - this._lastTimestamp) / 1000);
     this._lastTimestamp = timestamp;
 
     if (this.isPlaying) {
-      // Escalado visual de frecuencia para una animación fluida visible al ojo humano
-      const animFreq = Math.min(3.0, Math.max(0.8, 0.6 + this.modeIndex * 0.4));
-      this.time += dt * animFreq * this.timeSpeed;
+      // Acumulación continua de tiempo visual sin saltos (dt * factor de velocidad)
+      this.time += dt * this.timeSpeed;
     }
 
     this.render();
@@ -598,24 +614,33 @@ class TubesLab {
     // Botones de Play / Pause / Reset
     const btnPlay = document.getElementById('tubes-btn-play');
     if (btnPlay) {
-      btnPlay.onclick = () => {
-        this.isPlaying = !this.isPlaying;
-        btnPlay.innerHTML = this.isPlaying
-          ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg> Pausar`
-          : `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg> Reproducir`;
-      };
+      btnPlay.onclick = () => this.togglePlay();
     }
 
     const btnReset = document.getElementById('tubes-btn-reset');
     if (btnReset) {
-      btnReset.onclick = () => {
-        this.time = 0;
-        this.isPlaying = true;
-        if (btnPlay) {
-          btnPlay.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg> Pausar`;
+      btnReset.onclick = () => this.reset();
+    }
+
+    // Deslizador interactivo de Velocidad de Animación (0.1x a 2.0x)
+    const sliderSpeed = document.getElementById('tubes-slider-speed');
+    const valSpeed = document.getElementById('tubes-val-speed');
+    if (sliderSpeed) {
+      sliderSpeed.value = '2'; // 0.5x como velocidad inicial recomendada
+      const handleSpeed = () => {
+        const idx = Math.max(0, Math.min(5, parseInt(sliderSpeed.value, 10)));
+        this.timeSpeed = this.speedPresets[idx];
+        if (valSpeed) {
+          valSpeed.textContent = this.speedLabels[idx];
+          valSpeed.title = this.speedTitles[idx];
         }
       };
+      sliderSpeed.oninput = handleSpeed;
+      handleSpeed();
     }
+
+    // Sincronizar estado visual inicial de los controles de transporte
+    this.updateTransportUI();
 
     // Toggles visuales
     const chkPart = document.getElementById('tubes-chk-particles');
@@ -728,10 +753,54 @@ class TubesLab {
     container.innerHTML = html;
   }
 
+  // ================= CONTROL DE TRANSPORTE Y REPRODUCCIÓN =================
+  setPlaying(playing) {
+    this.isPlaying = !!playing;
+    this.updateTransportUI();
+  }
+
+  togglePlay() {
+    this.setPlaying(!this.isPlaying);
+  }
+
+  reset() {
+    this.time = 0;
+    this.setPlaying(false);
+    this.render();
+  }
+
+  updateTransportUI() {
+    const btnPlay = document.getElementById('tubes-btn-play');
+    const badge = document.getElementById('tubes-status-badge');
+
+    if (btnPlay) {
+      if (this.isPlaying) {
+        btnPlay.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg> <span>Pausar</span>`;
+        btnPlay.title = 'Pausar simulación';
+        btnPlay.style.background = '#d97706';
+      } else {
+        btnPlay.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg> <span>Reproducir</span>`;
+        btnPlay.title = 'Iniciar animación';
+        btnPlay.style.background = '#059669';
+      }
+    }
+
+    if (badge) {
+      if (this.isPlaying) {
+        badge.className = 'sim-status-badge playing';
+        badge.innerHTML = '<span class="status-pulse-dot"></span> REPRODUCIENDO';
+      } else {
+        badge.className = 'sim-status-badge paused';
+        badge.textContent = 'PAUSADO';
+      }
+    }
+  }
+
   setMode(m) {
     this.modeIndex = m;
     this.updateHarmonicPills();
     this.updateUI();
+    this.render();
   }
 
   // Preconfiguración para las actividades guiadas
@@ -763,6 +832,7 @@ class TubesLab {
 
     this.updateHarmonicPills();
     this.updateUI();
+    this.render();
   }
 }
 

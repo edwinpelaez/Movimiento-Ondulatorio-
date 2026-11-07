@@ -961,13 +961,19 @@ export class NotebookApp {
       <!-- Barra de Transporte y Toggles Visuales -->
       <div class="physics-scrubber-bar">
         <div class="scrubber-controls">
-          <button type="button" id="tubes-btn-play" class="btn-ctrl-primary" style="display:inline-flex; align-items:center; gap:5px; padding:5px 12px; font-size:0.8rem; font-weight:700; border-radius:8px; background:#7c3aed; color:#fff; border:none; cursor:pointer;">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
-            Pausar
+          <span class="sim-status-badge paused" id="tubes-status-badge">PAUSADO</span>
+          <button type="button" id="tubes-btn-play" class="btn-ctrl-primary" title="Iniciar animación" style="display:inline-flex; align-items:center; gap:5px; padding:5px 12px; font-size:0.8rem; font-weight:700; border-radius:8px; background:#059669; color:#fff; border:none; cursor:pointer;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            <span>Reproducir</span>
           </button>
-          <button type="button" id="tubes-btn-reset" class="btn-ctrl-round" title="Reiniciar tiempo" style="width:28px; height:28px; border-radius:50%; border:1px solid #cbd5e1; background:#fff; cursor:pointer; display:flex; align-items:center; justify-content:center;">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+          <button type="button" id="tubes-btn-reset" class="btn-ctrl-round" title="Reiniciar al estado inicial" style="width:28px; height:28px; border-radius:50%; border:1px solid #cbd5e1; background:#fff; cursor:pointer; display:flex; align-items:center; justify-content:center;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
           </button>
+          <div class="anim-speed-ctrl" title="Velocidad de reproducción de la animación (0.1x a 2.0x)">
+            <span class="anim-speed-label">Velocidad:</span>
+            <input type="range" id="tubes-slider-speed" class="anim-speed-slider" min="0" max="5" step="1" value="2" aria-label="Velocidad de animación">
+            <span class="anim-speed-badge" id="tubes-val-speed">0.5x</span>
+          </div>
         </div>
         <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:0.75rem; color:#334155; font-weight:600;">
           <label style="display:inline-flex; align-items:center; gap:4px; cursor:pointer;"><input type="checkbox" id="tubes-chk-particles" checked> Partículas</label>
@@ -1101,18 +1107,19 @@ export class NotebookApp {
       <!-- Barra de Transporte y Opciones Visuales -->
       <div class="physics-scrubber-bar">
         <div class="scrubber-controls">
-          <button type="button" id="strings-btn-play" class="btn-ctrl-primary" style="display:inline-flex; align-items:center; gap:5px; padding:5px 12px; font-size:0.8rem; font-weight:700; border-radius:8px; background:#7c3aed; color:#fff; border:none; cursor:pointer;">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
-            Pausar
+          <span class="sim-status-badge paused" id="strings-status-badge">PAUSADO</span>
+          <button type="button" id="strings-btn-play" class="btn-ctrl-primary" title="Iniciar animación" style="display:inline-flex; align-items:center; gap:5px; padding:5px 12px; font-size:0.8rem; font-weight:700; border-radius:8px; background:#059669; color:#fff; border:none; cursor:pointer;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            <span>Reproducir</span>
           </button>
-          <button type="button" id="strings-btn-reset" class="btn-ctrl-round" title="Reiniciar tiempo" style="width:28px; height:28px; border-radius:50%; border:1px solid #cbd5e1; background:#fff; cursor:pointer; display:flex; align-items:center; justify-content:center;">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+          <button type="button" id="strings-btn-reset" class="btn-ctrl-round" title="Reiniciar al estado inicial" style="width:28px; height:28px; border-radius:50%; border:1px solid #cbd5e1; background:#fff; cursor:pointer; display:flex; align-items:center; justify-content:center;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
           </button>
-          <select id="strings-select-speed" class="sim-select" style="padding:3px 8px; font-size:0.75rem;">
-            <option value="0.25">0.25x (Lento)</option>
-            <option value="0.5">0.5x</option>
-            <option value="1.0" selected>1.0x (Normal)</option>
-          </select>
+          <div class="anim-speed-ctrl" title="Velocidad de reproducción de la animación (0.1x a 2.0x)">
+            <span class="anim-speed-label">Velocidad:</span>
+            <input type="range" id="strings-slider-speed" class="anim-speed-slider" min="0" max="5" step="1" value="2" aria-label="Velocidad de animación">
+            <span class="anim-speed-badge" id="strings-val-speed">0.5x</span>
+          </div>
         </div>
         <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:0.75rem; color:#334155; font-weight:600;">
           <label style="display:inline-flex; align-items:center; gap:4px; cursor:pointer; color:#9333ea;"><input type="checkbox" id="strings-chk-envelope" checked> Envolvente &plusmn;A</label>

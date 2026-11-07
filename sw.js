@@ -1,5 +1,5 @@
 // Service Worker para el Cuaderno Virtual Universitario de Física 3
-const CACHE_NAME = 'fisica3-ondas-v3';
+const CACHE_NAME = 'fisica3-ondas-v4';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',

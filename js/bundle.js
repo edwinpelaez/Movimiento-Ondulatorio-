@@ -5735,10 +5735,22 @@ class TubesLab {
     this.modeIndex = 1;         // 1, 2, 3, 4, 5 (1 = fundamental)
     this.amplitude = 0.04;      // Amplitud de oscilación normalizada
     this.time = 0;              // Tiempo de simulación (s)
-    this.timeSpeed = 1.0;       // Escala de tiempo para animación
+    this.timeSpeed = 0.5;       // Escala de velocidad visual (0.5x recomendada por defecto)
 
-    // Estado de animación
-    this.isPlaying = true;
+    // Valores discretos del slider de velocidad de animación
+    this.speedPresets = [0.1, 0.25, 0.5, 1.0, 1.5, 2.0];
+    this.speedLabels = ['0.1x', '0.25x', '0.5x', '1.0x', '1.5x', '2.0x'];
+    this.speedTitles = [
+      '0.1x: Extremadamente lento',
+      '0.25x: Muy lento',
+      '0.5x: Lento (Recomendado)',
+      '1.0x: Velocidad normal',
+      '1.5x: Rápido',
+      '2.0x: Muy rápido'
+    ];
+
+    // Estado de animación: INICIA SIEMPRE PAUSADO
+    this.isPlaying = false;
     this._animLoopRunning = false;
     this._rafId = null;
     this._lastTimestamp = 0;
@@ -5809,34 +5821,37 @@ class TubesLab {
    * Tubo Cerrado-Abierto (Cerrado en x=0): Nodo de xi en x=0 -> sin(n*pi*x / (2L))
    */
   getDisplacement(x, t = this.time) {
-    const n = this.harmonicNumber;
-    const omega = 2 * Math.PI * this.frequency;
     const k = (2 * Math.PI) / this.wavelength;
+    const baseVisualFreq = 0.75;
+    const harmonicScale = Math.min(2.5, 1 + (this.modeIndex - 1) * 0.35);
+    const omegaVisual = 2 * Math.PI * baseVisualFreq * harmonicScale;
 
     if (this.tubeType === 'open-open') {
-      // xi(x,t) = A * cos(k * x) * cos(omega * t)
-      return this.amplitude * Math.cos(k * x) * Math.cos(omega * t);
+      // xi(x,t) = A * cos(k * x) * cos(omegaVisual * t)
+      return this.amplitude * Math.cos(k * x) * Math.cos(omegaVisual * t);
     } else {
       // Cerrado en x=0: xi(0) = 0
-      return this.amplitude * Math.sin(k * x) * Math.cos(omega * t);
+      return this.amplitude * Math.sin(k * x) * Math.cos(omegaVisual * t);
     }
   }
 
   /**
-   * Variación de presión acústica Delta P(x, t) proprocional a -d(xi)/dx
+   * Variación de presión acústica Delta P(x, t) proporcional a -d(xi)/dx
    * Tubo Abierto-Abierto: Nodo de presión en x=0 y x=L -> sin(k*x)
    * Tubo Cerrado-Abierto: Antinodo de presión en x=0 (cerrado), Nodo en x=L -> cos(k*x)
    */
   getPressure(x, t = this.time) {
-    const omega = 2 * Math.PI * this.frequency;
     const k = (2 * Math.PI) / this.wavelength;
+    const baseVisualFreq = 0.75;
+    const harmonicScale = Math.min(2.5, 1 + (this.modeIndex - 1) * 0.35);
+    const omegaVisual = 2 * Math.PI * baseVisualFreq * harmonicScale;
 
     if (this.tubeType === 'open-open') {
-      // d/dx [cos(k*x)] = -k*sin(k*x) => Delta P = A * sin(k*x) * cos(omega*t)
-      return this.amplitude * Math.sin(k * x) * Math.cos(omega * t);
+      // d/dx [cos(k*x)] = -k*sin(k*x) => Delta P = A * sin(k*x) * cos(omegaVisual * t)
+      return this.amplitude * Math.sin(k * x) * Math.cos(omegaVisual * t);
     } else {
-      // d/dx [sin(k*x)] = k*cos(k*x) => Delta P = A * cos(k*x) * cos(omega*t)
-      return this.amplitude * Math.cos(k * x) * Math.cos(omega * t);
+      // d/dx [sin(k*x)] = k*cos(k*x) => Delta P = A * cos(k*x) * cos(omegaVisual * t)
+      return this.amplitude * Math.cos(k * x) * Math.cos(omegaVisual * t);
     }
   }
 
@@ -5895,6 +5910,7 @@ class TubesLab {
   }
 
   destroy() {
+    this.isPlaying = false;
     this._animLoopRunning = false;
     if (this._rafId) {
       cancelAnimationFrame(this._rafId);
@@ -5941,13 +5957,13 @@ class TubesLab {
   _loop(timestamp) {
     if (!this._animLoopRunning) return;
 
+    if (!this._lastTimestamp) this._lastTimestamp = timestamp;
     const dt = Math.min(0.06, (timestamp - this._lastTimestamp) / 1000);
     this._lastTimestamp = timestamp;
 
     if (this.isPlaying) {
-      // Escalado visual de frecuencia para una animación fluida visible al ojo humano
-      const animFreq = Math.min(3.0, Math.max(0.8, 0.6 + this.modeIndex * 0.4));
-      this.time += dt * animFreq * this.timeSpeed;
+      // Acumulación continua de tiempo visual sin saltos (dt * factor de velocidad)
+      this.time += dt * this.timeSpeed;
     }
 
     this.render();
@@ -6315,24 +6331,33 @@ class TubesLab {
     // Botones de Play / Pause / Reset
     const btnPlay = document.getElementById('tubes-btn-play');
     if (btnPlay) {
-      btnPlay.onclick = () => {
-        this.isPlaying = !this.isPlaying;
-        btnPlay.innerHTML = this.isPlaying
-          ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg> Pausar`
-          : `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg> Reproducir`;
-      };
+      btnPlay.onclick = () => this.togglePlay();
     }
 
     const btnReset = document.getElementById('tubes-btn-reset');
     if (btnReset) {
-      btnReset.onclick = () => {
-        this.time = 0;
-        this.isPlaying = true;
-        if (btnPlay) {
-          btnPlay.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg> Pausar`;
+      btnReset.onclick = () => this.reset();
+    }
+
+    // Deslizador interactivo de Velocidad de Animación (0.1x a 2.0x)
+    const sliderSpeed = document.getElementById('tubes-slider-speed');
+    const valSpeed = document.getElementById('tubes-val-speed');
+    if (sliderSpeed) {
+      sliderSpeed.value = '2'; // 0.5x como velocidad inicial recomendada
+      const handleSpeed = () => {
+        const idx = Math.max(0, Math.min(5, parseInt(sliderSpeed.value, 10)));
+        this.timeSpeed = this.speedPresets[idx];
+        if (valSpeed) {
+          valSpeed.textContent = this.speedLabels[idx];
+          valSpeed.title = this.speedTitles[idx];
         }
       };
+      sliderSpeed.oninput = handleSpeed;
+      handleSpeed();
     }
+
+    // Sincronizar estado visual inicial de los controles de transporte
+    this.updateTransportUI();
 
     // Toggles visuales
     const chkPart = document.getElementById('tubes-chk-particles');
@@ -6445,10 +6470,54 @@ class TubesLab {
     container.innerHTML = html;
   }
 
+  // ================= CONTROL DE TRANSPORTE Y REPRODUCCIÓN =================
+  setPlaying(playing) {
+    this.isPlaying = !!playing;
+    this.updateTransportUI();
+  }
+
+  togglePlay() {
+    this.setPlaying(!this.isPlaying);
+  }
+
+  reset() {
+    this.time = 0;
+    this.setPlaying(false);
+    this.render();
+  }
+
+  updateTransportUI() {
+    const btnPlay = document.getElementById('tubes-btn-play');
+    const badge = document.getElementById('tubes-status-badge');
+
+    if (btnPlay) {
+      if (this.isPlaying) {
+        btnPlay.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg> <span>Pausar</span>`;
+        btnPlay.title = 'Pausar simulación';
+        btnPlay.style.background = '#d97706';
+      } else {
+        btnPlay.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg> <span>Reproducir</span>`;
+        btnPlay.title = 'Iniciar animación';
+        btnPlay.style.background = '#059669';
+      }
+    }
+
+    if (badge) {
+      if (this.isPlaying) {
+        badge.className = 'sim-status-badge playing';
+        badge.innerHTML = '<span class="status-pulse-dot"></span> REPRODUCIENDO';
+      } else {
+        badge.className = 'sim-status-badge paused';
+        badge.textContent = 'PAUSADO';
+      }
+    }
+  }
+
   setMode(m) {
     this.modeIndex = m;
     this.updateHarmonicPills();
     this.updateUI();
+    this.render();
   }
 
   // Preconfiguración para las actividades guiadas
@@ -6480,6 +6549,7 @@ class TubesLab {
 
     this.updateHarmonicPills();
     this.updateUI();
+    this.render();
   }
 }
 
@@ -6506,10 +6576,22 @@ class StringsLab {
     this.A = 0.05;           // Amplitud de oscilación en metros [0.01 - 0.12]
     this.harmonic = 1;       // Número de armónico n [1, 2, 3, 4, 5, 6]
 
-    // Estado de animación
+    // Valores discretos del slider de velocidad de animación
+    this.speedPresets = [0.1, 0.25, 0.5, 1.0, 1.5, 2.0];
+    this.speedLabels = ['0.1x', '0.25x', '0.5x', '1.0x', '1.5x', '2.0x'];
+    this.speedTitles = [
+      '0.1x: Extremadamente lento',
+      '0.25x: Muy lento',
+      '0.5x: Lento (Recomendado)',
+      '1.0x: Velocidad normal',
+      '1.5x: Rápido',
+      '2.0x: Muy rápido'
+    ];
+
+    // Estado de animación: INICIA SIEMPRE PAUSADO
     this.time = 0;
-    this.isPlaying = true;
-    this.timeScale = 1.0;    // 0.25x, 0.5x, 1x
+    this.isPlaying = false;
+    this.timeScale = 0.5;    // 0.5x como velocidad recomendada inicial
     this._animLoopRunning = false;
     this._rafId = null;
     this._lastTimestamp = 0;
@@ -6551,12 +6633,14 @@ class StringsLab {
   }
 
   /**
-   * Perfil vertical de la onda estacionaria: y(x,t) = A * sin(n*pi*x/L) * cos(omega_n * t)
+   * Perfil vertical de la onda estacionaria: y(x,t) = A * sin(n*pi*x/L) * cos(omega_visual * t)
    */
   getDisplacement(x, t = this.time) {
     const k = (this.harmonic * Math.PI) / this.L;
-    const omega = 2 * Math.PI * this.frequency;
-    return this.A * Math.sin(k * x) * Math.cos(omega * t);
+    const baseVisualFreq = 0.75;
+    const harmonicScale = Math.min(2.5, 1 + (this.harmonic - 1) * 0.35);
+    const omegaVisual = 2 * Math.PI * baseVisualFreq * harmonicScale;
+    return this.A * Math.sin(k * x) * Math.cos(omegaVisual * t);
   }
 
   /**
@@ -6568,21 +6652,25 @@ class StringsLab {
   }
 
   /**
-   * Onda viajera incidente hacia la derecha: y_inc = (A/2) * sin(k*x - omega*t)
+   * Onda viajera incidente hacia la derecha: y_inc = (A/2) * sin(k*x - omega_visual*t)
    */
   getIncidentWave(x, t = this.time) {
     const k = (this.harmonic * Math.PI) / this.L;
-    const omega = 2 * Math.PI * this.frequency;
-    return (this.A / 2) * Math.sin(k * x - omega * t);
+    const baseVisualFreq = 0.75;
+    const harmonicScale = Math.min(2.5, 1 + (this.harmonic - 1) * 0.35);
+    const omegaVisual = 2 * Math.PI * baseVisualFreq * harmonicScale;
+    return (this.A / 2) * Math.sin(k * x - omegaVisual * t);
   }
 
   /**
-   * Onda viajera reflejada hacia la izquierda: y_ref = (A/2) * sin(k*x + omega*t)
+   * Onda viajera reflejada hacia la izquierda: y_ref = (A/2) * sin(k*x + omega_visual*t)
    */
   getReflectedWave(x, t = this.time) {
     const k = (this.harmonic * Math.PI) / this.L;
-    const omega = 2 * Math.PI * this.frequency;
-    return (this.A / 2) * Math.sin(k * x + omega * t);
+    const baseVisualFreq = 0.75;
+    const harmonicScale = Math.min(2.5, 1 + (this.harmonic - 1) * 0.35);
+    const omegaVisual = 2 * Math.PI * baseVisualFreq * harmonicScale;
+    return (this.A / 2) * Math.sin(k * x + omegaVisual * t);
   }
 
   /**
@@ -6623,6 +6711,7 @@ class StringsLab {
   }
 
   destroy() {
+    this.isPlaying = false;
     this._animLoopRunning = false;
     if (this._rafId) {
       cancelAnimationFrame(this._rafId);
@@ -6669,13 +6758,13 @@ class StringsLab {
   _loop(timestamp) {
     if (!this._animLoopRunning) return;
 
+    if (!this._lastTimestamp) this._lastTimestamp = timestamp;
     const dt = Math.min(0.06, (timestamp - this._lastTimestamp) / 1000);
     this._lastTimestamp = timestamp;
 
     if (this.isPlaying) {
-      // Escalado de frecuencia perceptiva agradable (1 a 3 Hz visuales)
-      const visualFreq = Math.min(2.5, Math.max(0.6, 0.5 + this.harmonic * 0.35));
-      this.time += dt * visualFreq * this.timeScale;
+      // Acumulación continua de tiempo visual sin saltos
+      this.time += dt * this.timeScale;
     }
 
     this.render();
@@ -7039,33 +7128,33 @@ class StringsLab {
     // Botones de Play / Pause / Reset
     const btnPlay = document.getElementById('strings-btn-play');
     if (btnPlay) {
-      btnPlay.onclick = () => {
-        this.isPlaying = !this.isPlaying;
-        btnPlay.innerHTML = this.isPlaying
-          ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg> Pausar`
-          : `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg> Reproducir`;
-      };
+      btnPlay.onclick = () => this.togglePlay();
     }
 
     const btnReset = document.getElementById('strings-btn-reset');
     if (btnReset) {
-      btnReset.onclick = () => {
-        this.time = 0;
-        this.isPlaying = true;
-        if (btnPlay) {
-          btnPlay.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg> Pausar`;
-        }
-      };
+      btnReset.onclick = () => this.reset();
     }
 
-    // Velocidad de reproducción (0.25x, 0.5x, 1x)
-    const selectSpeed = document.getElementById('strings-select-speed');
-    if (selectSpeed) {
-      selectSpeed.value = String(this.timeScale);
-      selectSpeed.onchange = (e) => {
-        this.timeScale = parseFloat(e.target.value);
+    // Deslizador interactivo de Velocidad de Animación (0.1x a 2.0x)
+    const sliderSpeed = document.getElementById('strings-slider-speed');
+    const valSpeed = document.getElementById('strings-val-speed');
+    if (sliderSpeed) {
+      sliderSpeed.value = '2'; // 0.5x como velocidad recomendada inicial
+      const handleSpeed = () => {
+        const idx = Math.max(0, Math.min(5, parseInt(sliderSpeed.value, 10)));
+        this.timeScale = this.speedPresets[idx];
+        if (valSpeed) {
+          valSpeed.textContent = this.speedLabels[idx];
+          valSpeed.title = this.speedTitles[idx];
+        }
       };
+      sliderSpeed.oninput = handleSpeed;
+      handleSpeed();
     }
+
+    // Sincronizar estado visual inicial de los controles de transporte
+    this.updateTransportUI();
 
     // Toggles
     const chkEnv = document.getElementById('strings-chk-envelope');
@@ -7165,10 +7254,54 @@ class StringsLab {
     container.innerHTML = html;
   }
 
+  // ================= CONTROL DE TRANSPORTE Y REPRODUCCIÓN =================
+  setPlaying(playing) {
+    this.isPlaying = !!playing;
+    this.updateTransportUI();
+  }
+
+  togglePlay() {
+    this.setPlaying(!this.isPlaying);
+  }
+
+  reset() {
+    this.time = 0;
+    this.setPlaying(false);
+    this.render();
+  }
+
+  updateTransportUI() {
+    const btnPlay = document.getElementById('strings-btn-play');
+    const badge = document.getElementById('strings-status-badge');
+
+    if (btnPlay) {
+      if (this.isPlaying) {
+        btnPlay.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg> <span>Pausar</span>`;
+        btnPlay.title = 'Pausar simulación';
+        btnPlay.style.background = '#d97706';
+      } else {
+        btnPlay.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg> <span>Reproducir</span>`;
+        btnPlay.title = 'Iniciar animación';
+        btnPlay.style.background = '#059669';
+      }
+    }
+
+    if (badge) {
+      if (this.isPlaying) {
+        badge.className = 'sim-status-badge playing';
+        badge.innerHTML = '<span class="status-pulse-dot"></span> REPRODUCIENDO';
+      } else {
+        badge.className = 'sim-status-badge paused';
+        badge.textContent = 'PAUSADO';
+      }
+    }
+  }
+
   setHarmonic(n) {
     this.harmonic = n;
     this.updateHarmonicPills();
     this.updateUI();
+    this.render();
   }
 
   // Preconfiguración de experimentos virtuales guiados
@@ -7218,6 +7351,7 @@ class StringsLab {
 
     this.updateHarmonicPills();
     this.updateUI();
+    this.render();
   }
 }
 
@@ -12441,13 +12575,19 @@ class NotebookApp {
       <!-- Barra de Transporte y Toggles Visuales -->
       <div class="physics-scrubber-bar">
         <div class="scrubber-controls">
-          <button type="button" id="tubes-btn-play" class="btn-ctrl-primary" style="display:inline-flex; align-items:center; gap:5px; padding:5px 12px; font-size:0.8rem; font-weight:700; border-radius:8px; background:#7c3aed; color:#fff; border:none; cursor:pointer;">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
-            Pausar
+          <span class="sim-status-badge paused" id="tubes-status-badge">PAUSADO</span>
+          <button type="button" id="tubes-btn-play" class="btn-ctrl-primary" title="Iniciar animación" style="display:inline-flex; align-items:center; gap:5px; padding:5px 12px; font-size:0.8rem; font-weight:700; border-radius:8px; background:#059669; color:#fff; border:none; cursor:pointer;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            <span>Reproducir</span>
           </button>
-          <button type="button" id="tubes-btn-reset" class="btn-ctrl-round" title="Reiniciar tiempo" style="width:28px; height:28px; border-radius:50%; border:1px solid #cbd5e1; background:#fff; cursor:pointer; display:flex; align-items:center; justify-content:center;">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+          <button type="button" id="tubes-btn-reset" class="btn-ctrl-round" title="Reiniciar al estado inicial" style="width:28px; height:28px; border-radius:50%; border:1px solid #cbd5e1; background:#fff; cursor:pointer; display:flex; align-items:center; justify-content:center;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
           </button>
+          <div class="anim-speed-ctrl" title="Velocidad de reproducción de la animación (0.1x a 2.0x)">
+            <span class="anim-speed-label">Velocidad:</span>
+            <input type="range" id="tubes-slider-speed" class="anim-speed-slider" min="0" max="5" step="1" value="2" aria-label="Velocidad de animación">
+            <span class="anim-speed-badge" id="tubes-val-speed">0.5x</span>
+          </div>
         </div>
         <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:0.75rem; color:#334155; font-weight:600;">
           <label style="display:inline-flex; align-items:center; gap:4px; cursor:pointer;"><input type="checkbox" id="tubes-chk-particles" checked> Partículas</label>
@@ -12581,18 +12721,19 @@ class NotebookApp {
       <!-- Barra de Transporte y Opciones Visuales -->
       <div class="physics-scrubber-bar">
         <div class="scrubber-controls">
-          <button type="button" id="strings-btn-play" class="btn-ctrl-primary" style="display:inline-flex; align-items:center; gap:5px; padding:5px 12px; font-size:0.8rem; font-weight:700; border-radius:8px; background:#7c3aed; color:#fff; border:none; cursor:pointer;">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
-            Pausar
+          <span class="sim-status-badge paused" id="strings-status-badge">PAUSADO</span>
+          <button type="button" id="strings-btn-play" class="btn-ctrl-primary" title="Iniciar animación" style="display:inline-flex; align-items:center; gap:5px; padding:5px 12px; font-size:0.8rem; font-weight:700; border-radius:8px; background:#059669; color:#fff; border:none; cursor:pointer;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            <span>Reproducir</span>
           </button>
-          <button type="button" id="strings-btn-reset" class="btn-ctrl-round" title="Reiniciar tiempo" style="width:28px; height:28px; border-radius:50%; border:1px solid #cbd5e1; background:#fff; cursor:pointer; display:flex; align-items:center; justify-content:center;">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+          <button type="button" id="strings-btn-reset" class="btn-ctrl-round" title="Reiniciar al estado inicial" style="width:28px; height:28px; border-radius:50%; border:1px solid #cbd5e1; background:#fff; cursor:pointer; display:flex; align-items:center; justify-content:center;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
           </button>
-          <select id="strings-select-speed" class="sim-select" style="padding:3px 8px; font-size:0.75rem;">
-            <option value="0.25">0.25x (Lento)</option>
-            <option value="0.5">0.5x</option>
-            <option value="1.0" selected>1.0x (Normal)</option>
-          </select>
+          <div class="anim-speed-ctrl" title="Velocidad de reproducción de la animación (0.1x a 2.0x)">
+            <span class="anim-speed-label">Velocidad:</span>
+            <input type="range" id="strings-slider-speed" class="anim-speed-slider" min="0" max="5" step="1" value="2" aria-label="Velocidad de animación">
+            <span class="anim-speed-badge" id="strings-val-speed">0.5x</span>
+          </div>
         </div>
         <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:0.75rem; color:#334155; font-weight:600;">
           <label style="display:inline-flex; align-items:center; gap:4px; cursor:pointer; color:#9333ea;"><input type="checkbox" id="strings-chk-envelope" checked> Envolvente &plusmn;A</label>
