@@ -13,6 +13,8 @@ const filesOrder = [
   'doppler-canvas.js',
   'doppler-ui.js',
   'app.js',
+  'tubes-sim.js',
+  'strings-sim.js',
   'notebook-content.js',
   'mindmap.js',
   'timeline.js',
@@ -79,6 +81,8 @@ bundleContent += `
   try { global.DopplerCanvas = DopplerCanvas; } catch(e) {}
   try { global.DopplerUI = DopplerUI; } catch(e) {}
   try { global.WaveApp = WaveApp; } catch(e) {}
+  try { global.TubesLab = TubesLab; } catch(e) {}
+  try { global.StringsLab = StringsLab; } catch(e) {}
   try { global.NOTEBOOK_METADATA = NOTEBOOK_METADATA; } catch(e) {}
   try { global.PRELIMINARY_SECTIONS = PRELIMINARY_SECTIONS; } catch(e) {}
   try { global.UNITS = UNITS; } catch(e) {}

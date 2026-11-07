@@ -8,8 +8,8 @@ import { SimulationsLab } from './simulations-lab.js';
 
 export class NotebookApp {
   constructor() {
-    this.currentSpreadIndex = 0; // 0 a 9 pliegos dobles
-    this.totalSpreads = 10;
+    this.currentSpreadIndex = 0; // 0 a 10 pliegos dobles
+    this.totalSpreads = 11;
     this.simLabInstance = null;
     this.mindMapInstance = null;
     this.timelineInstance = null;
@@ -88,6 +88,9 @@ export class NotebookApp {
             }
           }
         }
+      }
+      if (this.currentSpreadIndex === 9 && index !== 9) {
+        this.destroySpread9Simulations();
       }
 
       this.currentSpreadIndex = index;
@@ -168,9 +171,14 @@ export class NotebookApp {
         rightHTML = this.renderPage18Doppler();
         break;
       case 9:
-        spreadTitle = "Páginas 19 y 20 &middot; Formulario, Glosario y Bibliografía APA 7";
-        leftHTML = this.renderPage19Evaluacion();
-        rightHTML = this.renderPage20GlosarioBiblio();
+        spreadTitle = "Páginas 19 y 20 &middot; Tubos Sonoros (Pág. 19) y Cuerdas Tensas (Pág. 20)";
+        leftHTML = this.renderPage19Tubos();
+        rightHTML = this.renderPage20Cuerdas();
+        break;
+      case 10:
+        spreadTitle = "Páginas 21 y 22 &middot; Formulario, Glosario y Bibliografía APA 7";
+        leftHTML = this.renderPage21Evaluacion();
+        rightHTML = this.renderPage22GlosarioBiblio();
         break;
     }
 
@@ -229,6 +237,8 @@ export class NotebookApp {
     } else if (this.currentSpreadIndex === 8) {
       this.mountSpread8Simulations();
     } else if (this.currentSpreadIndex === 9) {
+      this.mountSpread9Simulations();
+    } else if (this.currentSpreadIndex === 10) {
       this.initGlossary();
       this.initFormulaSearch();
       this.initComprehensiveQuiz();
@@ -300,7 +310,11 @@ export class NotebookApp {
           <span class="index-arrow-icon">→</span>
         </div>
         <div class="index-unit-link-card" onclick="window.notebookApp.goToSpread(9);">
-          <span><strong>10.</strong> Glosario Técnico &amp; Referencias APA 7</span>
+          <span><strong>10.</strong> Tubos Sonoros (Pág. 19) y Cuerdas Tensas (Pág. 20)</span>
+          <span class="index-arrow-icon">→</span>
+        </div>
+        <div class="index-unit-link-card" onclick="window.notebookApp.goToSpread(10);">
+          <span><strong>11.</strong> Formulario, Glosario Técnico &amp; Normas APA 7 (Págs. 21-22)</span>
           <span class="index-arrow-icon">→</span>
         </div>
       </div>
@@ -864,12 +878,358 @@ export class NotebookApp {
     });
   }
 
-  // ================= PÁGINA 19 Y 20: EVALUACIÓN, GLOSARIO Y BIBLIOGRAFÍA =================
-  renderPage19Evaluacion() {
+  // ================= MONTAJE DE SIMULADORES EN PLIEGO 9 (PÁGS. 19 Y 20) =================
+  mountSpread9Simulations() {
+    this.destroySpread9Simulations();
+
+    const doMount = () => {
+      // 1. Montar Laboratorio de Tubos Sonoros en Pág. 19
+      try {
+        if (typeof TubesLab === 'function' && document.getElementById('tubesCanvas')) {
+          window.tubesLabInstance = new TubesLab('tubesCanvas');
+          window.tubesLabInstance.mount();
+        }
+      } catch (err) {
+        console.error('[NotebookApp] Error montando TubesLab:', err);
+      }
+
+      // 2. Montar Laboratorio de Cuerdas Tensas en Pág. 20
+      try {
+        if (typeof StringsLab === 'function' && document.getElementById('stringsCanvas')) {
+          window.stringsLabInstance = new StringsLab('stringsCanvas');
+          window.stringsLabInstance.mount();
+        }
+      } catch (err) {
+        console.error('[NotebookApp] Error montando StringsLab:', err);
+      }
+    };
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        setTimeout(doMount, 60);
+      });
+    });
+  }
+
+  destroySpread9Simulations() {
+    if (window.tubesLabInstance && typeof window.tubesLabInstance.destroy === 'function') {
+      window.tubesLabInstance.destroy();
+      window.tubesLabInstance = null;
+    }
+    if (window.stringsLabInstance && typeof window.stringsLabInstance.destroy === 'function') {
+      window.stringsLabInstance.destroy();
+      window.stringsLabInstance = null;
+    }
+  }
+
+  // ================= PÁGINA 19: SIMULADOR DE TUBOS SONOROS =================
+  renderPage19Tubos() {
+    return `
+      <div class="page-top-header">
+        <div class="header-academic-label">Laboratorio Virtual de Acústica</div>
+        <div class="page-number-pill">Pág. 19</div>
+      </div>
+      <h2 class="page-main-heading">Resonancia en Tubos Sonoros</h2>
+      <p class="page-lead-caption">Estudio de ondas estacionarias longitudinales en columnas de aire, distribución de nodos y antinodos de desplazamiento y presión acústica.</p>
+
+      <!-- Selector de Tipo de Tubo y Armónicos -->
+      <div class="sim-controls-card">
+        <div class="sim-control-row">
+          <label for="tubes-type-select" class="sim-control-label">Geometría del Tubo:</label>
+          <select id="tubes-type-select" class="sim-select" style="flex:1; max-width:none;">
+            <option value="open-open">Tubo Abierto en ambos extremos (λₙ = 2L/n, fₙ = nv/2L)</option>
+            <option value="open-closed">Tubo Cerrado en un extremo (λₘ = 4L/(2m−1), fₘ = (2m−1)v/4L)</option>
+          </select>
+        </div>
+        <div style="margin-top: 8px;">
+          <div style="font-size:0.75rem; font-weight:700; color:#475569; margin-bottom:4px;">Modo de Resonancia / Armónico:</div>
+          <div class="sim-mode-pills-row">
+            <button type="button" class="tubes-mode-pill active" data-mode="1">Modo 1 &middot; <span class="pill-harmonic-name">n = 1</span></button>
+            <button type="button" class="tubes-mode-pill" data-mode="2">Modo 2 &middot; <span class="pill-harmonic-name">n = 2</span></button>
+            <button type="button" class="tubes-mode-pill" data-mode="3">Modo 3 &middot; <span class="pill-harmonic-name">n = 3</span></button>
+            <button type="button" class="tubes-mode-pill" data-mode="4">Modo 4 &middot; <span class="pill-harmonic-name">n = 4</span></button>
+            <button type="button" class="tubes-mode-pill" data-mode="5">Modo 5 &middot; <span class="pill-harmonic-name">n = 5</span></button>
+          </div>
+        </div>
+      </div>
+
+      <!-- VIEWPORT DEL LIENZO CANVAS 2D -->
+      <div class="notebook-tubes-viewport">
+        <canvas id="tubesCanvas"></canvas>
+      </div>
+
+      <!-- Barra de Transporte y Toggles Visuales -->
+      <div class="physics-scrubber-bar">
+        <div class="scrubber-controls">
+          <button type="button" id="tubes-btn-play" class="btn-ctrl-primary" style="display:inline-flex; align-items:center; gap:5px; padding:5px 12px; font-size:0.8rem; font-weight:700; border-radius:8px; background:#7c3aed; color:#fff; border:none; cursor:pointer;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+            Pausar
+          </button>
+          <button type="button" id="tubes-btn-reset" class="btn-ctrl-round" title="Reiniciar tiempo" style="width:28px; height:28px; border-radius:50%; border:1px solid #cbd5e1; background:#fff; cursor:pointer; display:flex; align-items:center; justify-content:center;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+          </button>
+        </div>
+        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:0.75rem; color:#334155; font-weight:600;">
+          <label style="display:inline-flex; align-items:center; gap:4px; cursor:pointer;"><input type="checkbox" id="tubes-chk-particles" checked> Partículas</label>
+          <label style="display:inline-flex; align-items:center; gap:4px; cursor:pointer; color:#0284c7;"><input type="checkbox" id="tubes-chk-disp" checked> Desplazamiento ξ</label>
+          <label style="display:inline-flex; align-items:center; gap:4px; cursor:pointer; color:#d97706;"><input type="checkbox" id="tubes-chk-pres" checked> Presión ΔP</label>
+          <label style="display:inline-flex; align-items:center; gap:4px; cursor:pointer;"><input type="checkbox" id="tubes-chk-nodes" checked> Nodos / Antinodos</label>
+        </div>
+      </div>
+
+      <!-- Sliders de Parámetros Físicos -->
+      <div class="sim-controls-card">
+        <div class="sim-control-row">
+          <label for="tubes-slider-l" class="sim-control-label">Longitud del Tubo (L):</label>
+          <input type="range" id="tubes-slider-l" class="sim-slider-input" min="0.4" max="3.0" step="0.05" value="1.0">
+          <span class="sim-val-pill" id="tubes-val-l">1.00 m</span>
+        </div>
+        <div class="sim-control-row">
+          <label for="tubes-slider-v" class="sim-control-label">Velocidad del Sonido (v):</label>
+          <input type="range" id="tubes-slider-v" class="sim-slider-input" min="300" max="380" step="1" value="340">
+          <span class="sim-val-pill" id="tubes-val-v">340 m/s</span>
+        </div>
+        <div class="sim-control-row">
+          <label for="tubes-slider-a" class="sim-control-label">Amplitud de Excitación (A):</label>
+          <input type="range" id="tubes-slider-a" class="sim-slider-input" min="0.01" max="0.08" step="0.005" value="0.04">
+        </div>
+      </div>
+
+      <!-- Panel de Telemetría Numérica -->
+      <div class="sim-telemetry-grid">
+        <div class="sim-metric-card">
+          <div class="sim-metric-label">Fundamental (f₁)</div>
+          <div class="sim-metric-val" id="tubes-readout-f1" style="color:#7c3aed;">170.0 Hz</div>
+        </div>
+        <div class="sim-metric-card">
+          <div class="sim-metric-label">Frecuencia Actual (fₙ)</div>
+          <div class="sim-metric-val" id="tubes-readout-fn" style="color:#0284c7;">170.0 Hz</div>
+        </div>
+        <div class="sim-metric-card">
+          <div class="sim-metric-label">Longitud de Onda (λ)</div>
+          <div class="sim-metric-val" id="tubes-readout-lambda" style="color:#059669;">2.000 m</div>
+        </div>
+        <div class="sim-metric-card">
+          <div class="sim-metric-label">Modo / Armónico</div>
+          <div class="sim-metric-val" id="tubes-readout-harmonic" style="font-size:0.8rem;">n = 1</div>
+        </div>
+        <div class="sim-metric-card" style="grid-column: span 2;">
+          <div class="sim-metric-label">Distribución Nodos/Antinodos (ξ)</div>
+          <div class="sim-metric-val" id="tubes-readout-nodes-count" style="font-size:0.82rem; color:#475569;">1 nodos / 2 antinodos</div>
+        </div>
+      </div>
+
+      <!-- Tabla de los 5 Modos Permitidos -->
+      <h3 class="unit-subtitle-h3" style="font-size:0.92rem; margin:14px 0 6px;">Primeros 5 Modos Permitidos de Resonancia</h3>
+      <div class="sim-modes-table-wrap">
+        <table class="sim-modes-table">
+          <thead>
+            <tr>
+              <th>Armónico</th>
+              <th>Denominación</th>
+              <th>Frecuencia (Hz)</th>
+              <th>Longitud Onda (λ)</th>
+              <th>Acción</th>
+            </tr>
+          </thead>
+          <tbody id="tubes-table-modes-body"></tbody>
+        </table>
+      </div>
+
+      <!-- Sección Explora y Experimenta -->
+      <h3 class="unit-subtitle-h3" style="font-size:0.92rem; margin:16px 0 8px;">🔬 Explora y Experimenta</h3>
+      <div class="sim-activities-list">
+        <div class="sim-activity-card">
+          <div class="sim-activity-title">
+            <span>1. Efecto de la longitud del tubo</span>
+            <button type="button" class="sim-activity-btn" onclick="window.tubesLabInstance.loadExploration('shorten-l');">Probar L = 0.5 m</button>
+          </div>
+          <p class="sim-activity-desc"><strong>Pregunta:</strong> ¿Qué ocurre con la frecuencia fundamental al reducir la longitud a la mitad? <em>Observación:</em> Dado que f₁ = v/(2L), la frecuencia se duplica (relación inversamente proporcional).</p>
+        </div>
+        <div class="sim-activity-card">
+          <div class="sim-activity-title">
+            <span>2. Tubo abierto vs. Tubo cerrado</span>
+            <button type="button" class="sim-activity-btn" onclick="window.tubesLabInstance.loadExploration('compare-closed');">Probar Tubo Cerrado</button>
+          </div>
+          <p class="sim-activity-desc"><strong>Pregunta:</strong> ¿Por qué un tubo cerrado-abierto suena una octava más grave que uno abierto de igual longitud? <em>Física:</em> f₁^(cerrado) = v/(4L) = ½ f₁^(abierto), produciendo un tono una octava más bajo.</p>
+        </div>
+        <div class="sim-activity-card">
+          <div class="sim-activity-title">
+            <span>3. ¿Por qué el tubo cerrado solo presenta armónicos impares?</span>
+            <button type="button" class="sim-activity-btn" onclick="window.tubesLabInstance.loadExploration('higher-harmonic');">Ver Modo 3 (n = 5)</button>
+          </div>
+          <p class="sim-activity-desc"><strong>Condición de frontera:</strong> El fondo cerrado fuerza un nodo de desplazamiento (ξ=0) y la boca abierta un antinodo (|ξ|=A). Esta asimetría solo puede albergar un número impar de cuartos de onda: L = (2m−1)λ/4.</p>
+        </div>
+        <div class="sim-activity-card">
+          <div class="sim-activity-title">
+            <span>4. Nodos de Desplazamiento vs. Nodos de Presión</span>
+          </div>
+          <p class="sim-activity-desc"><strong>Diferenciación crucial:</strong> En los extremos abiertos las moléculas se mueven libremente (antinodo de ξ), pero la presión está fija a la atmosférica (nodo de ΔP). En la pared cerrada las moléculas chocan sin poder avanzar (nodo de ξ), produciendo las máximas oscilaciones de compresión (antinodo de ΔP).</p>
+        </div>
+      </div>
+    `;
+  }
+
+  // ================= PÁGINA 20: SIMULADOR DE CUERDAS TENSAS =================
+  renderPage20Cuerdas() {
+    return `
+      <div class="page-top-header">
+        <div class="header-academic-label">Laboratorio de Ondas Estacionarias</div>
+        <div class="page-number-pill">Pág. 20</div>
+      </div>
+      <h2 class="page-main-heading">Ondas Estacionarias en Cuerdas Tensas</h2>
+      <p class="page-lead-caption">Modos normales de vibración, relación dinámica v = √(T/μ) y superposición de ondas viajeras incidentes y reflejadas.</p>
+
+      <!-- Selector de Armónicos -->
+      <div class="sim-controls-card">
+        <div style="font-size:0.75rem; font-weight:700; color:#475569; margin-bottom:4px;">Modo Normal de Vibración (Armónico n):</div>
+        <div class="sim-mode-pills-row">
+          <button type="button" class="strings-mode-pill active" data-harmonic="1">n = 1 (Fundamental)</button>
+          <button type="button" class="strings-mode-pill" data-harmonic="2">n = 2 (2.° armónico)</button>
+          <button type="button" class="strings-mode-pill" data-harmonic="3">n = 3 (3.° armónico)</button>
+          <button type="button" class="strings-mode-pill" data-harmonic="4">n = 4 (4.° armónico)</button>
+          <button type="button" class="strings-mode-pill" data-harmonic="5">n = 5 (5.° armónico)</button>
+          <button type="button" class="strings-mode-pill" data-harmonic="6">n = 6 (6.° armónico)</button>
+        </div>
+      </div>
+
+      <!-- VIEWPORT DEL LIENZO CANVAS 2D -->
+      <div class="notebook-strings-viewport">
+        <canvas id="stringsCanvas"></canvas>
+      </div>
+
+      <!-- Barra de Transporte y Opciones Visuales -->
+      <div class="physics-scrubber-bar">
+        <div class="scrubber-controls">
+          <button type="button" id="strings-btn-play" class="btn-ctrl-primary" style="display:inline-flex; align-items:center; gap:5px; padding:5px 12px; font-size:0.8rem; font-weight:700; border-radius:8px; background:#7c3aed; color:#fff; border:none; cursor:pointer;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+            Pausar
+          </button>
+          <button type="button" id="strings-btn-reset" class="btn-ctrl-round" title="Reiniciar tiempo" style="width:28px; height:28px; border-radius:50%; border:1px solid #cbd5e1; background:#fff; cursor:pointer; display:flex; align-items:center; justify-content:center;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+          </button>
+          <select id="strings-select-speed" class="sim-select" style="padding:3px 8px; font-size:0.75rem;">
+            <option value="0.25">0.25x (Lento)</option>
+            <option value="0.5">0.5x</option>
+            <option value="1.0" selected>1.0x (Normal)</option>
+          </select>
+        </div>
+        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:0.75rem; color:#334155; font-weight:600;">
+          <label style="display:inline-flex; align-items:center; gap:4px; cursor:pointer; color:#9333ea;"><input type="checkbox" id="strings-chk-envelope" checked> Envolvente &plusmn;A</label>
+          <label style="display:inline-flex; align-items:center; gap:4px; cursor:pointer;"><input type="checkbox" id="strings-chk-nodes" checked> Nodos/Antinodos</label>
+          <label style="display:inline-flex; align-items:center; gap:4px; cursor:pointer; color:#ef4444;"><input type="checkbox" id="strings-chk-components"> Ondas componentes (y_inc, y_ref)</label>
+        </div>
+      </div>
+
+      <!-- Sliders de Parámetros Físicos con Unidades -->
+      <div class="sim-controls-card">
+        <div class="sim-control-row">
+          <label for="strings-slider-l" class="sim-control-label">Longitud de la Cuerda (L):</label>
+          <input type="range" id="strings-slider-l" class="sim-slider-input" min="0.4" max="3.0" step="0.05" value="1.0">
+          <span class="sim-val-pill" id="strings-val-l">1.00 m</span>
+        </div>
+        <div class="sim-control-row">
+          <label for="strings-slider-t" class="sim-control-label">Tensión Aplicada (T):</label>
+          <input type="range" id="strings-slider-t" class="sim-slider-input" min="10" max="400" step="5" value="100">
+          <span class="sim-val-pill" id="strings-val-t">100 N</span>
+        </div>
+        <div class="sim-control-row">
+          <label for="strings-slider-mu" class="sim-control-label">Densidad Lineal (μ):</label>
+          <input type="range" id="strings-slider-mu" class="sim-slider-input" min="0.001" max="0.030" step="0.001" value="0.004">
+          <span class="sim-val-pill" id="strings-val-mu">4.0 g/m (0.0040 kg/m)</span>
+        </div>
+        <div class="sim-control-row">
+          <label for="strings-slider-a" class="sim-control-label">Amplitud Máxima (A):</label>
+          <input type="range" id="strings-slider-a" class="sim-slider-input" min="0.01" max="0.12" step="0.005" value="0.05">
+        </div>
+      </div>
+
+      <!-- Panel de Telemetría Dinámica -->
+      <div class="sim-telemetry-grid">
+        <div class="sim-metric-card">
+          <div class="sim-metric-label">Rapidez de Onda (v)</div>
+          <div class="sim-metric-val" id="strings-readout-v" style="color:#0284c7;">158.1 m/s</div>
+        </div>
+        <div class="sim-metric-card">
+          <div class="sim-metric-label">Fundamental (f₁)</div>
+          <div class="sim-metric-val" id="strings-readout-f1" style="color:#7c3aed;">79.06 Hz</div>
+        </div>
+        <div class="sim-metric-card">
+          <div class="sim-metric-label">Frecuencia Modo (fₙ)</div>
+          <div class="sim-metric-val" id="strings-readout-fn" style="color:#d97706;">79.06 Hz</div>
+        </div>
+        <div class="sim-metric-card">
+          <div class="sim-metric-label">Longitud Onda (λₙ)</div>
+          <div class="sim-metric-val" id="strings-readout-lambda" style="color:#059669;">2.000 m</div>
+        </div>
+        <div class="sim-metric-card">
+          <div class="sim-metric-label">Nodos Totales (N)</div>
+          <div class="sim-metric-val" id="strings-readout-nodes" style="font-size:0.8rem;">2 nodos (x=0, x=L)</div>
+        </div>
+        <div class="sim-metric-card">
+          <div class="sim-metric-label">Antinodos (A)</div>
+          <div class="sim-metric-val" id="strings-readout-antinodes" style="font-size:0.8rem; color:#10b981;">1 antinodo</div>
+        </div>
+      </div>
+
+      <!-- Tabla de los 5 Primeros Armónicos -->
+      <h3 class="unit-subtitle-h3" style="font-size:0.92rem; margin:14px 0 6px;">Tabla de Modos Normales y Frecuencias Resonantes</h3>
+      <div class="sim-modes-table-wrap">
+        <table class="sim-modes-table">
+          <thead>
+            <tr>
+              <th>Armónico</th>
+              <th>Descripción</th>
+              <th>Frecuencia (Hz)</th>
+              <th>Longitud Onda (λ)</th>
+              <th>Seleccionar</th>
+            </tr>
+          </thead>
+          <tbody id="strings-table-modes-body"></tbody>
+        </table>
+      </div>
+
+      <!-- Laboratorio Experimental Guiado -->
+      <h3 class="unit-subtitle-h3" style="font-size:0.92rem; margin:16px 0 8px;">🧪 Experimentos Virtuales Guiados</h3>
+      <div class="sim-activities-list">
+        <div class="sim-activity-card">
+          <div class="sim-activity-title">
+            <span>Experimento 1. Efecto de la tensión mecánica (T)</span>
+            <button type="button" class="sim-activity-btn" onclick="window.stringsLabInstance.loadExperiment(1);">Cargar Exp 1 (T = 400 N)</button>
+          </div>
+          <p class="sim-activity-desc"><strong>Hipótesis:</strong> ¿Qué sucede con la velocidad v y la frecuencia f si cuadruplicamos la tensión manteniendo constantes L y μ? <em>Resultado:</em> v = √(400/0.004) = 316.2 m/s, exactamente el doble de 158.1 m/s (relación v ∝ √T).</p>
+        </div>
+        <div class="sim-activity-card">
+          <div class="sim-activity-title">
+            <span>Experimento 2. Efecto de la densidad lineal de masa (μ)</span>
+            <button type="button" class="sim-activity-btn" onclick="window.stringsLabInstance.loadExperiment(2);">Cargar Exp 2 (μ = 16 g/m)</button>
+          </div>
+          <p class="sim-activity-desc"><strong>Hipótesis:</strong> Al cuatriplicar la densidad lineal a tensión constante, la inercia de la cuerda frena la propagación de perturbaciones. <em>Resultado:</em> v se reduce a la mitad (v ∝ 1/√μ) y la fundamental cae a 39.5 Hz.</p>
+        </div>
+        <div class="sim-activity-card">
+          <div class="sim-activity-title">
+            <span>Experimento 3. Efecto de la longitud de la cuerda (L)</span>
+            <button type="button" class="sim-activity-btn" onclick="window.stringsLabInstance.loadExperiment(3);">Cargar Exp 3 (L = 0.5 m)</button>
+          </div>
+          <p class="sim-activity-desc"><strong>Principio de instrumentos de cuerda:</strong> Al pulsar un traste o pisar la cuerda reduciendo su longitud libre a la mitad, la velocidad v no cambia, pero λ se reduce a la mitad y la frecuencia se duplica (octava superior).</p>
+        </div>
+        <div class="sim-activity-card">
+          <div class="sim-activity-title">
+            <span>Experimento 4. Análisis de nodos y antinodos en armónicos</span>
+            <button type="button" class="sim-activity-btn" onclick="window.stringsLabInstance.loadExperiment(4);">Cargar Exp 4 (Armónico n = 4)</button>
+          </div>
+          <p class="sim-activity-desc"><strong>Teoría de modos normales:</strong> Para el 4.° armónico se aprecian 5 nodos fijos (puntos de interferencia destructiva permanente) y 4 antinodos vibrando con amplitud 2A.</p>
+        </div>
+      </div>
+    `;
+  }
+
+  // ================= PÁGINA 21 Y 22: EVALUACIÓN, GLOSARIO Y BIBLIOGRAFÍA =================
+  renderPage21Evaluacion() {
     return `
       <div class="page-top-header">
         <div class="header-academic-label">Compendio y Evaluación</div>
-        <div class="page-number-pill">Pág. 19</div>
+        <div class="page-number-pill">Pág. 21</div>
       </div>
       <h2 class="page-main-heading">Formulario y Autoevaluación</h2>
       <p class="page-lead-caption">Consulta fórmulas fundamentales y evalúa tu dominio general del curso.</p>
@@ -884,11 +1244,11 @@ export class NotebookApp {
     `;
   }
 
-  renderPage20GlosarioBiblio() {
+  renderPage22GlosarioBiblio() {
     return `
       <div class="page-top-header">
         <div class="header-academic-label">Glosario y Bibliografía</div>
-        <div class="page-number-pill">Pág. 20</div>
+        <div class="page-number-pill">Pág. 22</div>
       </div>
       <h2 class="page-main-heading">Glosario Técnico &amp; Normas APA 7</h2>
       <p class="page-lead-caption">Términos científicos normativos y fuentes académicas universitarias.</p>

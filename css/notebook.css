@@ -188,8 +188,8 @@
 .book-page.page-portada-left {
   padding: 0 !important;
   background-image: none;
-  background-color: transparent;
-  overflow: hidden;
+  background-color: #ffffff;
+  overflow: visible;
   border-radius: 18px 4px 4px 18px;
   position: relative;
 }
@@ -368,42 +368,40 @@
   position: relative;
   width: 100%;
   height: 100%;
-  max-height: 100%;
-  min-height: 100%;
-  border-radius: inherit;
-  overflow: hidden;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: space-between;
   box-sizing: border-box;
-  background: transparent;
+  background: #ffffff;
+  border-radius: inherit;
+  padding: 8px 12px 10px;
 }
 
 .portada-image-frame {
-  position: absolute;
-  inset: 0;
+  position: relative;
   width: 100%;
-  height: 100%;
-  border-radius: inherit;
-  overflow: hidden;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background: transparent;
   border: none;
   box-shadow: none;
   margin: 0;
   padding: 0;
-  display: block;
 }
 
 .portada-image-frame img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
-  object-position: center 8%;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  object-position: center;
   display: block;
-  border-radius: inherit;
-  margin: 0;
-  padding: 0;
-  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  margin: 0 auto;
 }
 
 /* Sombra realista de lomo en el borde derecho que se une a las argollas metálicas */
@@ -413,56 +411,37 @@
   top: 0;
   bottom: 0;
   right: 0;
-  width: 36px;
-  background: linear-gradient(to left, rgba(0, 0, 0, 0.35) 0%, rgba(0, 0, 0, 0.1) 60%, transparent 100%);
-  pointer-events: none;
-  z-index: 2;
-}
-
-/* Sombra interior perimetral sutil que enfatiza la encuadernación */
-.portada-book-card::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  box-shadow: inset 1px 1px 4px rgba(255, 255, 255, 0.15), inset -2px -2px 10px rgba(0, 0, 0, 0.25);
+  width: 24px;
+  background: linear-gradient(to left, rgba(0, 0, 0, 0.18) 0%, rgba(0, 0, 0, 0.04) 60%, transparent 100%);
   pointer-events: none;
   z-index: 2;
 }
 
 .btn-open-interactive-book {
-  position: absolute;
-  bottom: clamp(14px, 2.5vh, 22px);
-  right: clamp(14px, 2.5vw, 24px);
-  left: auto;
-  transform: none;
-  z-index: 5;
+  position: static;
+  flex: 0 0 auto;
+  margin-top: 6px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  background: linear-gradient(135deg, rgba(124, 58, 237, 0.92), rgba(76, 29, 149, 0.95));
+  gap: 8px;
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.95), rgba(76, 29, 149, 0.95));
   color: #ffffff;
-  border: 1px solid rgba(255, 255, 255, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.4);
   border-radius: 9999px;
-  padding: 10px 22px;
-  font-size: 0.90rem;
+  padding: 8px 22px;
+  font-size: 0.85rem;
   font-weight: 700;
   cursor: pointer;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45), 0 2px 8px rgba(124, 58, 237, 0.5);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  box-shadow: 0 3px 12px rgba(124, 58, 237, 0.35);
   transition: all 0.25s ease;
   white-space: nowrap;
-  width: auto;
-  max-width: 90%;
 }
 
 .btn-open-interactive-book:hover {
-  transform: translateY(-2px) scale(1.03);
+  transform: translateY(-2px) scale(1.02);
   background: linear-gradient(135deg, #8b5cf6, #5b21b6);
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.55), 0 4px 14px rgba(124, 58, 237, 0.7);
-  border-color: rgba(255, 255, 255, 0.5);
+  box-shadow: 0 6px 18px rgba(124, 58, 237, 0.55);
 }
 
 .btn-open-interactive-book:active {

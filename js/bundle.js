@@ -5714,6 +5714,1515 @@ class WaveApp {
 // Init manejado por bundle
 
 
+/* ======================== tubes-sim.js ======================== */
+/**
+ * FÍSICA 3: MOVIMIENTO ONDULATORIO
+ * SIMULADOR INTERACTIVO DE TUBOS SONOROS (PÁGINA 19)
+ * Resonancia acústica, ondas estacionarias longitudinales, partículas de aire,
+ * distribución de presión acústica Delta P(x,t) y desplazamiento xi(x,t).
+ */
+
+class TubesLab {
+  constructor(canvasId = 'tubesCanvas') {
+    this.canvasId = canvasId;
+    this.canvas = null;
+    this.ctx = null;
+
+    // Parámetros físicos
+    this.tubeType = 'open-open'; // 'open-open' | 'open-closed'
+    this.L = 1.0;               // Longitud del tubo en metros [0.4 - 3.0]
+    this.v = 340.0;             // Velocidad del sonido en m/s [300 - 400]
+    this.modeIndex = 1;         // 1, 2, 3, 4, 5 (1 = fundamental)
+    this.amplitude = 0.04;      // Amplitud de oscilación normalizada
+    this.time = 0;              // Tiempo de simulación (s)
+    this.timeSpeed = 1.0;       // Escala de tiempo para animación
+
+    // Estado de animación
+    this.isPlaying = true;
+    this._animLoopRunning = false;
+    this._rafId = null;
+    this._lastTimestamp = 0;
+
+    // Opciones visuales
+    this.showParticles = true;
+    this.showDisplacement = true;
+    this.showPressure = true;
+    this.showNodes = true;
+
+    // Malla de partículas de aire estáticas iniciales (60 x 14)
+    this.numCols = 70;
+    this.numRows = 12;
+    this.particles = [];
+    this.initParticles();
+
+    // Enlazar métodos
+    this._loop = this._loop.bind(this);
+    this._onResize = this._onResize.bind(this);
+  }
+
+  // ================= INICIALIZACIÓN DE PARTÍCULAS =================
+  initParticles() {
+    this.particles = [];
+    for (let r = 0; r < this.numRows; r++) {
+      for (let c = 0; c < this.numCols; c++) {
+        // Fracción x en [0, 1] con pequeña perturbación aleatoria para realismo fluido
+        const u = (c + 0.5 + (Math.random() - 0.5) * 0.35) / this.numCols;
+        const v = (r + 0.5 + (Math.random() - 0.5) * 0.35) / this.numRows;
+        this.particles.push({ u0: u, v0: v });
+      }
+    }
+  }
+
+  // ================= CÁLCULOS MATEMÁTICOS DE RESONANCIA =================
+  get harmonicNumber() {
+    if (this.tubeType === 'open-open') {
+      return this.modeIndex; // n = 1, 2, 3, 4, 5...
+    } else {
+      return 2 * this.modeIndex - 1; // n = 1, 3, 5, 7, 9... (solo impares)
+    }
+  }
+
+  get wavelength() {
+    const n = this.harmonicNumber;
+    if (this.tubeType === 'open-open') {
+      return (2 * this.L) / n;
+    } else {
+      return (4 * this.L) / n;
+    }
+  }
+
+  get frequency() {
+    return this.v / this.wavelength;
+  }
+
+  get fundamentalFrequency() {
+    if (this.tubeType === 'open-open') {
+      return this.v / (2 * this.L);
+    } else {
+      return this.v / (4 * this.L);
+    }
+  }
+
+  /**
+   * Desplazamiento xi(x, t) de las partículas de aire en posición x en [0, L]
+   * Tubo Abierto-Abierto: Antinodo de xi en x=0 y x=L -> cos(n*pi*x/L)
+   * Tubo Cerrado-Abierto (Cerrado en x=0): Nodo de xi en x=0 -> sin(n*pi*x / (2L))
+   */
+  getDisplacement(x, t = this.time) {
+    const n = this.harmonicNumber;
+    const omega = 2 * Math.PI * this.frequency;
+    const k = (2 * Math.PI) / this.wavelength;
+
+    if (this.tubeType === 'open-open') {
+      // xi(x,t) = A * cos(k * x) * cos(omega * t)
+      return this.amplitude * Math.cos(k * x) * Math.cos(omega * t);
+    } else {
+      // Cerrado en x=0: xi(0) = 0
+      return this.amplitude * Math.sin(k * x) * Math.cos(omega * t);
+    }
+  }
+
+  /**
+   * Variación de presión acústica Delta P(x, t) proprocional a -d(xi)/dx
+   * Tubo Abierto-Abierto: Nodo de presión en x=0 y x=L -> sin(k*x)
+   * Tubo Cerrado-Abierto: Antinodo de presión en x=0 (cerrado), Nodo en x=L -> cos(k*x)
+   */
+  getPressure(x, t = this.time) {
+    const omega = 2 * Math.PI * this.frequency;
+    const k = (2 * Math.PI) / this.wavelength;
+
+    if (this.tubeType === 'open-open') {
+      // d/dx [cos(k*x)] = -k*sin(k*x) => Delta P = A * sin(k*x) * cos(omega*t)
+      return this.amplitude * Math.sin(k * x) * Math.cos(omega * t);
+    } else {
+      // d/dx [sin(k*x)] = k*cos(k*x) => Delta P = A * cos(k*x) * cos(omega*t)
+      return this.amplitude * Math.cos(k * x) * Math.cos(omega * t);
+    }
+  }
+
+  /**
+   * Obtener las posiciones x de los Nodos y Antinodos de desplazamiento
+   */
+  getNodesAndAntinodes() {
+    const n = this.harmonicNumber;
+    const nodes = [];
+    const antinodes = [];
+
+    if (this.tubeType === 'open-open') {
+      // Desplazamiento xi ~ cos(n*pi*x/L)
+      // Nodos xi: cos(n*pi*x/L) = 0 => n*pi*x/L = (2m+1)*pi/2 => x = (2m+1)*L / (2n)
+      for (let m = 0; m < n; m++) {
+        nodes.push(((2 * m + 1) * this.L) / (2 * n));
+      }
+      // Antinodos xi: cos = +-1 => n*pi*x/L = m*pi => x = m*L / n
+      for (let m = 0; m <= n; m++) {
+        antinodes.push((m * this.L) / n);
+      }
+    } else {
+      // Cerrado en x=0: xi ~ sin(n*pi*x / (2L)) con n impar
+      // Nodos xi: sin = 0 => x = m*2L / n (m entero par/impar <= n/2)
+      for (let m = 0; ; m++) {
+        const x = (2 * m * this.L) / n;
+        if (x > this.L + 1e-6) break;
+        nodes.push(x);
+      }
+      // Antinodos xi: sin = +-1 => n*pi*x / (2L) = (2m+1)*pi/2 => x = (2m+1)*L / n
+      for (let m = 0; ; m++) {
+        const x = ((2 * m + 1) * this.L) / n;
+        if (x > this.L + 1e-6) break;
+        antinodes.push(x);
+      }
+    }
+
+    return { nodes, antinodes };
+  }
+
+  // ================= MONTAJE Y CICLO DE VIDA =================
+  mount() {
+    this.canvas = document.getElementById(this.canvasId);
+    if (!this.canvas) return;
+
+    this.ctx = this.canvas.getContext('2d');
+    this.resize();
+    this.bindEvents();
+    this.updateUI();
+
+    // Resetear loop
+    this._animLoopRunning = false;
+    this.startAnimationLoop();
+
+    window.addEventListener('resize', this._onResize);
+  }
+
+  destroy() {
+    this._animLoopRunning = false;
+    if (this._rafId) {
+      cancelAnimationFrame(this._rafId);
+      this._rafId = null;
+    }
+    window.removeEventListener('resize', this._onResize);
+  }
+
+  resize() {
+    if (!this.canvas) return;
+    const parent = this.canvas.parentElement;
+    let w = 800;
+    let h = 270;
+
+    if (parent) {
+      const rect = parent.getBoundingClientRect();
+      w = rect.width > 0 ? rect.width : (parent.clientWidth || 800);
+      h = rect.height > 0 ? rect.height : (parent.clientHeight || 270);
+    }
+
+    const dpr = window.devicePixelRatio || 1;
+    this.canvas.width = Math.max(300, Math.floor(w * dpr));
+    this.canvas.height = Math.max(180, Math.floor(h * dpr));
+    this.canvas.style.width = '100%';
+    this.canvas.style.height = '100%';
+
+    if (this.ctx) {
+      this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    this.render();
+  }
+
+  _onResize() {
+    this.resize();
+  }
+
+  startAnimationLoop() {
+    if (this._animLoopRunning) return;
+    this._animLoopRunning = true;
+    this._lastTimestamp = performance.now();
+    this._rafId = requestAnimationFrame(this._loop);
+  }
+
+  _loop(timestamp) {
+    if (!this._animLoopRunning) return;
+
+    const dt = Math.min(0.06, (timestamp - this._lastTimestamp) / 1000);
+    this._lastTimestamp = timestamp;
+
+    if (this.isPlaying) {
+      // Escalado visual de frecuencia para una animación fluida visible al ojo humano
+      const animFreq = Math.min(3.0, Math.max(0.8, 0.6 + this.modeIndex * 0.4));
+      this.time += dt * animFreq * this.timeSpeed;
+    }
+
+    this.render();
+    this._rafId = requestAnimationFrame(this._loop);
+  }
+
+  // ================= RENDERIZADO GRÁFICO (CANVAS 2D) =================
+  render() {
+    if (!this.ctx || !this.canvas) return;
+    const width = this.canvas.width / (window.devicePixelRatio || 1);
+    const height = this.canvas.height / (window.devicePixelRatio || 1);
+
+    const ctx = this.ctx;
+    ctx.clearRect(0, 0, width, height);
+
+    // Fondo oscuro GeoGebra
+    ctx.fillStyle = '#0b0f19';
+    ctx.fillRect(0, 0, width, height);
+
+    // Márgenes y áreas
+    const padX = 40;
+    const padTop = 22;
+    const tubeH = 75;
+    const tubeW = width - 2 * padX;
+    const tubeX = padX;
+    const tubeY = padTop;
+
+    const graphTop = tubeY + tubeH + 28;
+    const graphH = height - graphTop - 26;
+    const graphMidY = graphTop + graphH / 2;
+
+    // Cuadrícula cartesiana
+    this.drawGrid(ctx, tubeX, graphTop, tubeW, graphH);
+
+    // 1. Dibujar Tubo Físico y Partículas
+    this.drawTubeStructure(ctx, tubeX, tubeY, tubeW, tubeH);
+    if (this.showParticles) {
+      this.drawAirParticles(ctx, tubeX, tubeY, tubeW, tubeH);
+    }
+
+    // 2. Gráficas de Desplazamiento y Presión
+    this.drawWaveCurves(ctx, tubeX, graphTop, tubeW, graphH, graphMidY);
+
+    // 3. Marcadores de Nodos y Antinodos
+    if (this.showNodes) {
+      this.drawNodesAndAntinodes(ctx, tubeX, tubeY, tubeW, tubeH, graphTop, graphH);
+    }
+
+    // 4. Regla y Escala en Metros
+    this.drawScaleRuler(ctx, tubeX, tubeY + tubeH + 6, tubeW);
+  }
+
+  drawGrid(ctx, x0, y0, w, h) {
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
+    ctx.lineWidth = 1;
+
+    const cols = 10;
+    const rows = 4;
+    for (let c = 0; c <= cols; c++) {
+      const x = x0 + (c / cols) * w;
+      ctx.beginPath();
+      ctx.moveTo(x, y0);
+      ctx.lineTo(x, y0 + h);
+      ctx.stroke();
+    }
+    for (let r = 0; r <= rows; r++) {
+      const y = y0 + (r / rows) * h;
+      ctx.beginPath();
+      ctx.moveTo(x0, y);
+      ctx.lineTo(x0 + w, y);
+      ctx.stroke();
+    }
+  }
+
+  drawTubeStructure(ctx, x0, y0, w, h) {
+    // Fondo translúcido del interior del tubo
+    const grad = ctx.createLinearGradient(0, y0, 0, y0 + h);
+    grad.addColorStop(0, 'rgba(15, 23, 42, 0.85)');
+    grad.addColorStop(0.5, 'rgba(30, 41, 59, 0.4)');
+    grad.addColorStop(1, 'rgba(15, 23, 42, 0.85)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(x0, y0, w, h);
+
+    // Paredes del tubo (superior e inferior)
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = '#64748b';
+    ctx.lineCap = 'round';
+
+    // Pared superior
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    ctx.lineTo(x0 + w, y0);
+    ctx.stroke();
+
+    // Pared inferior
+    ctx.beginPath();
+    ctx.moveTo(x0, y0 + h);
+    ctx.lineTo(x0 + w, y0 + h);
+    ctx.stroke();
+
+    // Extremo izquierdo: ¿Abierto o Cerrado?
+    if (this.tubeType === 'open-closed') {
+      // Tapón mecánico cerrado
+      ctx.fillStyle = '#ef4444';
+      ctx.fillRect(x0 - 6, y0 - 2, 8, h + 4);
+      ctx.strokeStyle = '#f87171';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(x0 - 6, y0 - 2, 8, h + 4);
+
+      // Etiqueta cerrado
+      ctx.fillStyle = '#fca5a5';
+      ctx.font = 'bold 9px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('CERRADO', x0 - 18, y0 + h / 2 + 3);
+    } else {
+      // Campana acústica abierta izquierda
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(x0, y0 + h / 2, h / 2, Math.PI / 2, (3 * Math.PI) / 2);
+      ctx.stroke();
+    }
+
+    // Extremo derecho: Siempre abierto en ambos modelos
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(x0 + w, y0 + h / 2, h / 2, -Math.PI / 2, Math.PI / 2);
+    ctx.stroke();
+
+    // Etiqueta abierto
+    ctx.fillStyle = '#7dd3fc';
+    ctx.font = 'bold 9px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('ABIERTO', x0 + w + 10, y0 + h / 2 + 3);
+  }
+
+  drawAirParticles(ctx, x0, y0, w, h) {
+    const k = (2 * Math.PI) / this.wavelength;
+    const omega = 2 * Math.PI * this.frequency;
+    const maxShift = 22 * (this.amplitude / 0.04);
+
+    for (let i = 0; i < this.particles.length; i++) {
+      const p = this.particles[i];
+      const realX = p.u0 * this.L;
+
+      // Calcular desplazamiento instantáneo en píxeles
+      let dispFrac = 0;
+      let pressureVal = 0;
+
+      if (this.tubeType === 'open-open') {
+        dispFrac = Math.cos(k * realX) * Math.cos(omega * this.time);
+        pressureVal = Math.sin(k * realX) * Math.cos(omega * this.time);
+      } else {
+        dispFrac = Math.sin(k * realX) * Math.cos(omega * this.time);
+        pressureVal = Math.cos(k * realX) * Math.cos(omega * this.time);
+      }
+
+      const px = x0 + p.u0 * w + dispFrac * maxShift;
+      const py = y0 + p.v0 * h;
+
+      // Asegurar confinamiento dentro de las paredes
+      if (px >= x0 && px <= x0 + w) {
+        // Color dependiente de la compresión/rarefacción (presión)
+        // Alta presión (compresión) = tinte cálido; baja presión = cian frío
+        const tVal = Math.max(-1, Math.min(1, pressureVal));
+        if (tVal > 0) {
+          ctx.fillStyle = `rgba(244, 63, 94, ${0.4 + 0.5 * tVal})`;
+        } else {
+          ctx.fillStyle = `rgba(56, 189, 248, ${0.4 + 0.5 * Math.abs(tVal)})`;
+        }
+        ctx.beginPath();
+        ctx.arc(px, py, 2.2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }
+
+  drawWaveCurves(ctx, x0, y0, w, h, midY) {
+    const steps = 180;
+    const ampPx = (h / 2) * 0.82;
+
+    // Eje horizontal de equilibrio
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(x0, midY);
+    ctx.lineTo(x0 + w, midY);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // 1. Curva de Desplazamiento xi(x, t) — Azul / Cian brillante
+    if (this.showDisplacement) {
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      for (let s = 0; s <= steps; s++) {
+        const u = s / steps;
+        const xReal = u * this.L;
+        const xi = this.getDisplacement(xReal, this.time);
+        const y = midY - (xi / this.amplitude) * ampPx;
+        const x = x0 + u * w;
+        if (s === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
+
+    // 2. Curva de Presión Delta P(x, t) — Ámbar / Rojo brillante
+    if (this.showPressure) {
+      ctx.strokeStyle = '#f59e0b';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      for (let s = 0; s <= steps; s++) {
+        const u = s / steps;
+        const xReal = u * this.L;
+        const dp = this.getPressure(xReal, this.time);
+        const y = midY - (dp / this.amplitude) * ampPx;
+        const x = x0 + u * w;
+        if (s === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
+
+    // Leyendas de curvas en la esquina de la gráfica
+    ctx.font = 'bold 10px monospace';
+    if (this.showDisplacement) {
+      ctx.fillStyle = '#38bdf8';
+      ctx.fillText('— Desplazamiento ξ(x,t)', x0 + 10, y0 + 14);
+    }
+    if (this.showPressure) {
+      ctx.fillStyle = '#f59e0b';
+      ctx.fillText('— Presión ΔP(x,t)', x0 + 180, y0 + 14);
+    }
+  }
+
+  drawNodesAndAntinodes(ctx, tubeX, tubeY, tubeW, tubeH, graphTop, graphH) {
+    const { nodes, antinodes } = this.getNodesAndAntinodes();
+    const totalH = (graphTop + graphH) - tubeY;
+
+    // Nodos de desplazamiento (N): Puntos azules fijos
+    ctx.font = 'bold 10px sans-serif';
+    ctx.textAlign = 'center';
+
+    nodes.forEach(xReal => {
+      const u = xReal / this.L;
+      const xPx = tubeX + u * tubeW;
+
+      // Línea guía vertical punteada
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.28)';
+      ctx.setLineDash([3, 3]);
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(xPx, tubeY);
+      ctx.lineTo(xPx, graphTop + graphH);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Píldora de Nodo
+      ctx.fillStyle = '#0284c7';
+      ctx.beginPath();
+      ctx.arc(xPx, tubeY - 9, 7, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText('N', xPx, tubeY - 6);
+    });
+
+    // Antinodos de desplazamiento (A): Puntos dorados
+    antinodes.forEach(xReal => {
+      const u = xReal / this.L;
+      const xPx = tubeX + u * tubeW;
+
+      ctx.strokeStyle = 'rgba(245, 158, 11, 0.25)';
+      ctx.setLineDash([3, 3]);
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(xPx, tubeY);
+      ctx.lineTo(xPx, graphTop + graphH);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Píldora de Antinodo
+      ctx.fillStyle = '#d97706';
+      ctx.beginPath();
+      ctx.arc(xPx, tubeY - 9, 7, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText('A', xPx, tubeY - 6);
+    });
+  }
+
+  drawScaleRuler(ctx, x0, y, w) {
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x0, y);
+    ctx.lineTo(x0 + w, y);
+    ctx.stroke();
+
+    // Marcas de división
+    const nMarks = 5;
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '9px monospace';
+    ctx.textAlign = 'center';
+
+    for (let i = 0; i <= nMarks; i++) {
+      const x = x0 + (i / nMarks) * w;
+      const dist = (i / nMarks) * this.L;
+      ctx.beginPath();
+      ctx.moveTo(x, y - 3);
+      ctx.lineTo(x, y + 3);
+      ctx.stroke();
+      ctx.fillText(`${dist.toFixed(2)} m`, x, y + 13);
+    }
+  }
+
+  // ================= ENLACE DE EVENTOS UI =================
+  bindEvents() {
+    // Tipo de tubo
+    const selectType = document.getElementById('tubes-type-select');
+    if (selectType) {
+      selectType.value = this.tubeType;
+      selectType.onchange = (e) => {
+        this.tubeType = e.target.value;
+        this.updateHarmonicPills();
+        this.updateUI();
+      };
+    }
+
+    // Longitud L
+    const sliderL = document.getElementById('tubes-slider-l');
+    const valL = document.getElementById('tubes-val-l');
+    if (sliderL) {
+      sliderL.value = String(this.L);
+      sliderL.oninput = (e) => {
+        this.L = parseFloat(e.target.value);
+        if (valL) valL.textContent = `${this.L.toFixed(2)} m`;
+        this.updateUI();
+      };
+    }
+
+    // Velocidad del sonido v
+    const sliderV = document.getElementById('tubes-slider-v');
+    const valV = document.getElementById('tubes-val-v');
+    if (sliderV) {
+      sliderV.value = String(this.v);
+      sliderV.oninput = (e) => {
+        this.v = parseFloat(e.target.value);
+        if (valV) valV.textContent = `${this.v.toFixed(0)} m/s`;
+        this.updateUI();
+      };
+    }
+
+    // Amplitud A
+    const sliderA = document.getElementById('tubes-slider-a');
+    if (sliderA) {
+      sliderA.value = String(this.amplitude);
+      sliderA.oninput = (e) => {
+        this.amplitude = parseFloat(e.target.value);
+      };
+    }
+
+    // Botones de Play / Pause / Reset
+    const btnPlay = document.getElementById('tubes-btn-play');
+    if (btnPlay) {
+      btnPlay.onclick = () => {
+        this.isPlaying = !this.isPlaying;
+        btnPlay.innerHTML = this.isPlaying
+          ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg> Pausar`
+          : `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg> Reproducir`;
+      };
+    }
+
+    const btnReset = document.getElementById('tubes-btn-reset');
+    if (btnReset) {
+      btnReset.onclick = () => {
+        this.time = 0;
+        this.isPlaying = true;
+        if (btnPlay) {
+          btnPlay.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg> Pausar`;
+        }
+      };
+    }
+
+    // Toggles visuales
+    const chkPart = document.getElementById('tubes-chk-particles');
+    if (chkPart) {
+      chkPart.checked = this.showParticles;
+      chkPart.onchange = (e) => { this.showParticles = e.target.checked; };
+    }
+
+    const chkDisp = document.getElementById('tubes-chk-disp');
+    if (chkDisp) {
+      chkDisp.checked = this.showDisplacement;
+      chkDisp.onchange = (e) => { this.showDisplacement = e.target.checked; };
+    }
+
+    const chkPres = document.getElementById('tubes-chk-pres');
+    if (chkPres) {
+      chkPres.checked = this.showPressure;
+      chkPres.onchange = (e) => { this.showPressure = e.target.checked; };
+    }
+
+    const chkNodes = document.getElementById('tubes-chk-nodes');
+    if (chkNodes) {
+      chkNodes.checked = this.showNodes;
+      chkNodes.onchange = (e) => { this.showNodes = e.target.checked; };
+    }
+
+    this.bindHarmonicPills();
+  }
+
+  bindHarmonicPills() {
+    const pills = document.querySelectorAll('.tubes-mode-pill');
+    pills.forEach(pill => {
+      pill.onclick = () => {
+        const mode = parseInt(pill.getAttribute('data-mode'), 10);
+        if (!isNaN(mode)) {
+          this.modeIndex = mode;
+          this.updateHarmonicPills();
+          this.updateUI();
+        }
+      };
+    });
+  }
+
+  updateHarmonicPills() {
+    const pills = document.querySelectorAll('.tubes-mode-pill');
+    pills.forEach(pill => {
+      const mode = parseInt(pill.getAttribute('data-mode'), 10);
+      const isActive = mode === this.modeIndex;
+      pill.classList.toggle('active', isActive);
+
+      // Actualizar etiqueta del armónico (n=1,2,3... o n=1,3,5...)
+      const nActual = this.tubeType === 'open-open' ? mode : (2 * mode - 1);
+      const label = pill.querySelector('.pill-harmonic-name');
+      if (label) {
+        label.textContent = `n = ${nActual}`;
+      }
+    });
+  }
+
+  // ================= ACTUALIZACIÓN DE TELEMETRÍA Y TABLA =================
+  updateUI() {
+    const n = this.harmonicNumber;
+    const f = this.frequency;
+    const f1 = this.fundamentalFrequency;
+    const lambda = this.wavelength;
+    const { nodes, antinodes } = this.getNodesAndAntinodes();
+
+    const setT = (id, text) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = text;
+    };
+
+    setT('tubes-readout-f1', `${f1.toFixed(1)} Hz`);
+    setT('tubes-readout-fn', `${f.toFixed(1)} Hz`);
+    setT('tubes-readout-lambda', `${lambda.toFixed(3)} m`);
+    setT('tubes-readout-harmonic', `Armónico n = ${n}`);
+    setT('tubes-readout-nodes-count', `${nodes.length} nodos / ${antinodes.length} antinodos`);
+    setT('tubes-readout-v', `${this.v.toFixed(0)} m/s`);
+    setT('tubes-readout-l', `${this.L.toFixed(2)} m`);
+
+    // Actualizar tabla de los primeros 5 modos permitidos
+    this.renderModesTable();
+  }
+
+  renderModesTable() {
+    const container = document.getElementById('tubes-table-modes-body');
+    if (!container) return;
+
+    let html = '';
+    for (let m = 1; m <= 5; m++) {
+      const nMode = this.tubeType === 'open-open' ? m : (2 * m - 1);
+      const lambdaM = this.tubeType === 'open-open' ? (2 * this.L) / nMode : (4 * this.L) / nMode;
+      const fM = this.v / lambdaM;
+      const isSelected = m === this.modeIndex;
+
+      html += `
+        <tr class="${isSelected ? 'active-row' : ''}" style="cursor: pointer;" onclick="window.tubesLabInstance.setMode(${m})">
+          <td><span class="badge-harmonic">n = ${nMode}</span></td>
+          <td>${m === 1 ? 'Fundamental' : `${m}.° modo (${nMode}.° armónico)`}</td>
+          <td><strong>${fM.toFixed(1)} Hz</strong></td>
+          <td>${lambdaM.toFixed(3)} m</td>
+          <td>
+            <button type="button" class="btn-table-apply ${isSelected ? 'applied' : ''}">
+              ${isSelected ? 'Activo' : 'Cargar'}
+            </button>
+          </td>
+        </tr>
+      `;
+    }
+    container.innerHTML = html;
+  }
+
+  setMode(m) {
+    this.modeIndex = m;
+    this.updateHarmonicPills();
+    this.updateUI();
+  }
+
+  // Preconfiguración para las actividades guiadas
+  loadExploration(expId) {
+    switch (expId) {
+      case 'shorten-l':
+        this.L = 0.5;
+        this.modeIndex = 1;
+        break;
+      case 'double-l':
+        this.L = 2.0;
+        this.modeIndex = 1;
+        break;
+      case 'compare-closed':
+        this.tubeType = 'open-closed';
+        this.modeIndex = 1;
+        break;
+      case 'higher-harmonic':
+        this.modeIndex = 3;
+        break;
+    }
+    const sliderL = document.getElementById('tubes-slider-l');
+    if (sliderL) sliderL.value = String(this.L);
+    const valL = document.getElementById('tubes-val-l');
+    if (valL) valL.textContent = `${this.L.toFixed(2)} m`;
+
+    const selectType = document.getElementById('tubes-type-select');
+    if (selectType) selectType.value = this.tubeType;
+
+    this.updateHarmonicPills();
+    this.updateUI();
+  }
+}
+
+
+
+/* ======================== strings-sim.js ======================== */
+/**
+ * FÍSICA 3: MOVIMIENTO ONDULATORIO
+ * SIMULADOR INTERACTIVO DE CUERDAS TENSAS (PÁGINA 20)
+ * Modos normales de vibración, ondas estacionarias, superposición de ondas viajeras
+ * componentes incidente y reflejada, velocidad v = sqrt(T/mu), armónicos n=1..6.
+ */
+
+class StringsLab {
+  constructor(canvasId = 'stringsCanvas') {
+    this.canvasId = canvasId;
+    this.canvas = null;
+    this.ctx = null;
+
+    // Parámetros físicos
+    this.L = 1.0;            // Longitud de la cuerda en metros [0.4 - 3.0]
+    this.T = 100.0;          // Tensión en Newtons [10 - 400]
+    this.mu = 0.004;         // Densidad lineal en kg/m (4 g/m) [0.001 - 0.050]
+    this.A = 0.05;           // Amplitud de oscilación en metros [0.01 - 0.12]
+    this.harmonic = 1;       // Número de armónico n [1, 2, 3, 4, 5, 6]
+
+    // Estado de animación
+    this.time = 0;
+    this.isPlaying = true;
+    this.timeScale = 1.0;    // 0.25x, 0.5x, 1x
+    this._animLoopRunning = false;
+    this._rafId = null;
+    this._lastTimestamp = 0;
+
+    // Toggles de visualización
+    this.showEnvelope = true;
+    this.showNodes = true;
+    this.showComponents = false; // Ondas incidente y reflejada
+
+    // Enlazar métodos
+    this._loop = this._loop.bind(this);
+    this._onResize = this._onResize.bind(this);
+  }
+
+  // ================= RELACIONES MATEMÁTICAS =================
+  get waveSpeed() {
+    // v = sqrt(T / mu)
+    return Math.sqrt(this.T / this.mu);
+  }
+
+  get wavelength() {
+    // lambda_n = 2L / n
+    return (2 * this.L) / this.harmonic;
+  }
+
+  get fundamentalFrequency() {
+    // f1 = v / (2L)
+    return this.waveSpeed / (2 * this.L);
+  }
+
+  get frequency() {
+    // fn = n * f1 = n * v / (2L)
+    return this.harmonic * this.fundamentalFrequency;
+  }
+
+  get angularFrequency() {
+    // omega_n = 2 * pi * fn
+    return 2 * Math.PI * this.frequency;
+  }
+
+  /**
+   * Perfil vertical de la onda estacionaria: y(x,t) = A * sin(n*pi*x/L) * cos(omega_n * t)
+   */
+  getDisplacement(x, t = this.time) {
+    const k = (this.harmonic * Math.PI) / this.L;
+    const omega = 2 * Math.PI * this.frequency;
+    return this.A * Math.sin(k * x) * Math.cos(omega * t);
+  }
+
+  /**
+   * Envolvente espacial superior: +A * |sin(n*pi*x/L)|
+   */
+  getEnvelope(x) {
+    const k = (this.harmonic * Math.PI) / this.L;
+    return this.A * Math.abs(Math.sin(k * x));
+  }
+
+  /**
+   * Onda viajera incidente hacia la derecha: y_inc = (A/2) * sin(k*x - omega*t)
+   */
+  getIncidentWave(x, t = this.time) {
+    const k = (this.harmonic * Math.PI) / this.L;
+    const omega = 2 * Math.PI * this.frequency;
+    return (this.A / 2) * Math.sin(k * x - omega * t);
+  }
+
+  /**
+   * Onda viajera reflejada hacia la izquierda: y_ref = (A/2) * sin(k*x + omega*t)
+   */
+  getReflectedWave(x, t = this.time) {
+    const k = (this.harmonic * Math.PI) / this.L;
+    const omega = 2 * Math.PI * this.frequency;
+    return (this.A / 2) * Math.sin(k * x + omega * t);
+  }
+
+  /**
+   * Posiciones exactas de Nodos (y=0) y Antinodos (|y|=A)
+   */
+  getNodesAndAntinodes() {
+    const n = this.harmonic;
+    const nodes = [];
+    const antinodes = [];
+
+    // Nodos: x_k = k * L / n  (k = 0, 1, ... n) -> Total n + 1 nodos
+    for (let k = 0; k <= n; k++) {
+      nodes.push((k * this.L) / n);
+    }
+
+    // Antinodos: x_k = (k - 0.5) * L / n  (k = 1, ... n) -> Total n antinodos
+    for (let k = 1; k <= n; k++) {
+      antinodes.push(((k - 0.5) * this.L) / n);
+    }
+
+    return { nodes, antinodes };
+  }
+
+  // ================= MONTAJE Y CICLO DE VIDA =================
+  mount() {
+    this.canvas = document.getElementById(this.canvasId);
+    if (!this.canvas) return;
+
+    this.ctx = this.canvas.getContext('2d');
+    this.resize();
+    this.bindEvents();
+    this.updateUI();
+
+    this._animLoopRunning = false;
+    this.startAnimationLoop();
+
+    window.addEventListener('resize', this._onResize);
+  }
+
+  destroy() {
+    this._animLoopRunning = false;
+    if (this._rafId) {
+      cancelAnimationFrame(this._rafId);
+      this._rafId = null;
+    }
+    window.removeEventListener('resize', this._onResize);
+  }
+
+  resize() {
+    if (!this.canvas) return;
+    const parent = this.canvas.parentElement;
+    let w = 800;
+    let h = 270;
+
+    if (parent) {
+      const rect = parent.getBoundingClientRect();
+      w = rect.width > 0 ? rect.width : (parent.clientWidth || 800);
+      h = rect.height > 0 ? rect.height : (parent.clientHeight || 270);
+    }
+
+    const dpr = window.devicePixelRatio || 1;
+    this.canvas.width = Math.max(300, Math.floor(w * dpr));
+    this.canvas.height = Math.max(180, Math.floor(h * dpr));
+    this.canvas.style.width = '100%';
+    this.canvas.style.height = '100%';
+
+    if (this.ctx) {
+      this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    this.render();
+  }
+
+  _onResize() {
+    this.resize();
+  }
+
+  startAnimationLoop() {
+    if (this._animLoopRunning) return;
+    this._animLoopRunning = true;
+    this._lastTimestamp = performance.now();
+    this._rafId = requestAnimationFrame(this._loop);
+  }
+
+  _loop(timestamp) {
+    if (!this._animLoopRunning) return;
+
+    const dt = Math.min(0.06, (timestamp - this._lastTimestamp) / 1000);
+    this._lastTimestamp = timestamp;
+
+    if (this.isPlaying) {
+      // Escalado de frecuencia perceptiva agradable (1 a 3 Hz visuales)
+      const visualFreq = Math.min(2.5, Math.max(0.6, 0.5 + this.harmonic * 0.35));
+      this.time += dt * visualFreq * this.timeScale;
+    }
+
+    this.render();
+    this._rafId = requestAnimationFrame(this._loop);
+  }
+
+  // ================= RENDERIZADO CANVAS 2D =================
+  render() {
+    if (!this.ctx || !this.canvas) return;
+    const width = this.canvas.width / (window.devicePixelRatio || 1);
+    const height = this.canvas.height / (window.devicePixelRatio || 1);
+    const ctx = this.ctx;
+
+    ctx.clearRect(0, 0, width, height);
+
+    // Fondo GeoGebra oscuro
+    ctx.fillStyle = '#0b0f19';
+    ctx.fillRect(0, 0, width, height);
+
+    const padX = 48;
+    const padTop = 32;
+    const spanW = width - 2 * padX;
+    const spanH = height - padTop - 45;
+    const midY = padTop + spanH / 2;
+
+    // Cuadrícula y ejes cartesianos
+    this.drawGrid(ctx, padX, padTop, spanW, spanH, midY);
+
+    // Envolvente de vibración (líneas punteadas brillantes)
+    if (this.showEnvelope) {
+      this.drawEnvelope(ctx, padX, midY, spanW, spanH);
+    }
+
+    // Ondas componentes viajeras (incidente y reflejada)
+    if (this.showComponents) {
+      this.drawComponents(ctx, padX, midY, spanW, spanH);
+    }
+
+    // Cuerda en vibración (trazo luminoso continuo neón)
+    this.drawVibratingString(ctx, padX, midY, spanW, spanH);
+
+    // Soportes rígidos fijos en x=0 y x=L
+    this.drawSupports(ctx, padX, midY, spanW);
+
+    // Marcadores de Nodos y Antinodos
+    if (this.showNodes) {
+      this.drawNodesAndAntinodes(ctx, padX, midY, spanW, spanH);
+    }
+
+    // Regla de distancia en metros
+    this.drawRuler(ctx, padX, midY + spanH / 2 + 10, spanW);
+  }
+
+  drawGrid(ctx, x0, y0, w, h, midY) {
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+    ctx.lineWidth = 1;
+
+    // Líneas verticales (10 divisiones)
+    for (let i = 0; i <= 10; i++) {
+      const x = x0 + (i / 10) * w;
+      ctx.beginPath();
+      ctx.moveTo(x, y0);
+      ctx.lineTo(x, y0 + h);
+      ctx.stroke();
+    }
+
+    // Líneas horizontales
+    for (let i = 0; i <= 6; i++) {
+      const y = y0 + (i / 6) * h;
+      ctx.beginPath();
+      ctx.moveTo(x0, y);
+      ctx.lineTo(x0 + w, y);
+      ctx.stroke();
+    }
+
+    // Eje de equilibrio horizontal
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(x0 - 15, midY);
+    ctx.lineTo(x0 + w + 15, midY);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  drawEnvelope(ctx, x0, midY, w, h) {
+    const steps = 180;
+    const ampPx = (h / 2) * 0.75;
+
+    ctx.strokeStyle = 'rgba(168, 85, 247, 0.45)';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 4]);
+
+    // Envolvente superior (+A)
+    ctx.beginPath();
+    for (let i = 0; i <= steps; i++) {
+      const u = i / steps;
+      const xReal = u * this.L;
+      const env = this.getEnvelope(xReal);
+      const y = midY - (env / this.A) * ampPx;
+      const x = x0 + u * w;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+
+    // Envolvente inferior (-A)
+    ctx.beginPath();
+    for (let i = 0; i <= steps; i++) {
+      const u = i / steps;
+      const xReal = u * this.L;
+      const env = this.getEnvelope(xReal);
+      const y = midY + (env / this.A) * ampPx;
+      const x = x0 + u * w;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  drawComponents(ctx, x0, midY, w, h) {
+    const steps = 150;
+    const ampPx = (h / 2) * 0.75;
+
+    // Onda incidente (roja, desplazándose hacia la derecha)
+    ctx.strokeStyle = 'rgba(239, 68, 68, 0.75)';
+    ctx.lineWidth = 1.8;
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath();
+    for (let i = 0; i <= steps; i++) {
+      const u = i / steps;
+      const xReal = u * this.L;
+      const yInc = this.getIncidentWave(xReal, this.time);
+      const y = midY - (yInc / this.A) * ampPx;
+      const x = x0 + u * w;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+
+    // Onda reflejada (verde, desplazándose hacia la izquierda)
+    ctx.strokeStyle = 'rgba(34, 197, 94, 0.75)';
+    ctx.beginPath();
+    for (let i = 0; i <= steps; i++) {
+      const u = i / steps;
+      const xReal = u * this.L;
+      const yRef = this.getReflectedWave(xReal, this.time);
+      const y = midY - (yRef / this.A) * ampPx;
+      const x = x0 + u * w;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Leyendas
+    ctx.font = 'bold 9px monospace';
+    ctx.fillStyle = '#ef4444';
+    ctx.fillText('→ Onda Incidente (y_inc)', x0 + 10, midY - (h / 2) * 0.85);
+    ctx.fillStyle = '#22c55e';
+    ctx.fillText('← Onda Reflejada (y_ref)', x0 + 190, midY - (h / 2) * 0.85);
+  }
+
+  drawVibratingString(ctx, x0, midY, w, h) {
+    const steps = 200;
+    const ampPx = (h / 2) * 0.75;
+
+    // Grosor de cuerda dependiente de la densidad lineal mu (1.8px a 5px)
+    const strThickness = Math.max(2, Math.min(6, Math.sqrt(this.mu / 0.001) * 1.5));
+
+    // Resplandor neón exterior
+    ctx.strokeStyle = 'rgba(6, 182, 212, 0.35)';
+    ctx.lineWidth = strThickness + 5;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    ctx.beginPath();
+    for (let i = 0; i <= steps; i++) {
+      const u = i / steps;
+      const xReal = u * this.L;
+      const yVal = this.getDisplacement(xReal, this.time);
+      const y = midY - (yVal / this.A) * ampPx;
+      const x = x0 + u * w;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+
+    // Cuerda central luminosa cian-blanco
+    const grad = ctx.createLinearGradient(x0, 0, x0 + w, 0);
+    grad.addColorStop(0, '#38bdf8');
+    grad.addColorStop(0.5, '#a7f3d0');
+    grad.addColorStop(1, '#818cf8');
+
+    ctx.strokeStyle = grad;
+    ctx.lineWidth = strThickness;
+    ctx.beginPath();
+    for (let i = 0; i <= steps; i++) {
+      const u = i / steps;
+      const xReal = u * this.L;
+      const yVal = this.getDisplacement(xReal, this.time);
+      const y = midY - (yVal / this.A) * ampPx;
+      const x = x0 + u * w;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  }
+
+  drawSupports(ctx, x0, midY, w) {
+    const blockW = 12;
+    const blockH = 34;
+
+    // Soporte mecánico izquierdo (x=0)
+    ctx.fillStyle = '#475569';
+    ctx.fillRect(x0 - blockW, midY - blockH / 2, blockW, blockH);
+    ctx.strokeStyle = '#94a3b8';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(x0 - blockW, midY - blockH / 2, blockW, blockH);
+
+    // Tornillo / perno mecánico
+    ctx.fillStyle = '#f8fafc';
+    ctx.beginPath();
+    ctx.arc(x0 - blockW / 2, midY, 3, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Soporte mecánico derecho (x=L)
+    ctx.fillStyle = '#475569';
+    ctx.fillRect(x0 + w, midY - blockH / 2, blockW, blockH);
+    ctx.strokeRect(x0 + w, midY - blockH / 2, blockW, blockH);
+
+    ctx.fillStyle = '#f8fafc';
+    ctx.beginPath();
+    ctx.arc(x0 + w + blockW / 2, midY, 3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  drawNodesAndAntinodes(ctx, x0, midY, w, h) {
+    const { nodes, antinodes } = this.getNodesAndAntinodes();
+    const ampPx = (h / 2) * 0.75;
+
+    ctx.font = 'bold 9px sans-serif';
+    ctx.textAlign = 'center';
+
+    // Nodos N (puntos fijos en y=0)
+    nodes.forEach((xReal, idx) => {
+      const u = xReal / this.L;
+      const px = x0 + u * w;
+
+      // Píldora de Nodo fija
+      ctx.fillStyle = '#ef4444';
+      ctx.beginPath();
+      ctx.arc(px, midY, 6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(`N`, px, midY + 3);
+
+      // Etiqueta posición
+      ctx.fillStyle = '#f87171';
+      ctx.font = '8px monospace';
+      ctx.fillText(`${xReal.toFixed(2)}m`, px, midY - 10);
+      ctx.font = 'bold 9px sans-serif';
+    });
+
+    // Antinodos A (crestas / valles)
+    antinodes.forEach((xReal, idx) => {
+      const u = xReal / this.L;
+      const px = x0 + u * w;
+
+      // Posición instantánea de la cresta
+      const yVal = this.getDisplacement(xReal, this.time);
+      const py = midY - (yVal / this.A) * ampPx;
+
+      ctx.fillStyle = '#10b981';
+      ctx.beginPath();
+      ctx.arc(px, py, 6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(`A`, px, py + 3);
+    });
+  }
+
+  drawRuler(ctx, x0, y, w) {
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x0, y);
+    ctx.lineTo(x0 + w, y);
+    ctx.stroke();
+
+    const marks = 5;
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '9px monospace';
+    ctx.textAlign = 'center';
+
+    for (let i = 0; i <= marks; i++) {
+      const x = x0 + (i / marks) * w;
+      const val = (i / marks) * this.L;
+      ctx.beginPath();
+      ctx.moveTo(x, y - 3);
+      ctx.lineTo(x, y + 3);
+      ctx.stroke();
+      ctx.fillText(`${val.toFixed(2)} m`, x, y + 12);
+    }
+  }
+
+  // ================= ENLACE DE EVENTOS UI =================
+  bindEvents() {
+    // Sliders
+    const sliderL = document.getElementById('strings-slider-l');
+    const valL = document.getElementById('strings-val-l');
+    if (sliderL) {
+      sliderL.value = String(this.L);
+      sliderL.oninput = (e) => {
+        this.L = parseFloat(e.target.value);
+        if (valL) valL.textContent = `${this.L.toFixed(2)} m`;
+        this.updateUI();
+      };
+    }
+
+    const sliderT = document.getElementById('strings-slider-t');
+    const valT = document.getElementById('strings-val-t');
+    if (sliderT) {
+      sliderT.value = String(this.T);
+      sliderT.oninput = (e) => {
+        this.T = parseFloat(e.target.value);
+        if (valT) valT.textContent = `${this.T.toFixed(0)} N`;
+        this.updateUI();
+      };
+    }
+
+    const sliderMu = document.getElementById('strings-slider-mu');
+    const valMu = document.getElementById('strings-val-mu');
+    if (sliderMu) {
+      sliderMu.value = String(this.mu);
+      sliderMu.oninput = (e) => {
+        this.mu = parseFloat(e.target.value);
+        if (valMu) valMu.textContent = `${(this.mu * 1000).toFixed(1)} g/m (${this.mu.toFixed(4)} kg/m)`;
+        this.updateUI();
+      };
+    }
+
+    const sliderA = document.getElementById('strings-slider-a');
+    if (sliderA) {
+      sliderA.value = String(this.A);
+      sliderA.oninput = (e) => {
+        this.A = parseFloat(e.target.value);
+      };
+    }
+
+    // Botones de Play / Pause / Reset
+    const btnPlay = document.getElementById('strings-btn-play');
+    if (btnPlay) {
+      btnPlay.onclick = () => {
+        this.isPlaying = !this.isPlaying;
+        btnPlay.innerHTML = this.isPlaying
+          ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg> Pausar`
+          : `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg> Reproducir`;
+      };
+    }
+
+    const btnReset = document.getElementById('strings-btn-reset');
+    if (btnReset) {
+      btnReset.onclick = () => {
+        this.time = 0;
+        this.isPlaying = true;
+        if (btnPlay) {
+          btnPlay.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg> Pausar`;
+        }
+      };
+    }
+
+    // Velocidad de reproducción (0.25x, 0.5x, 1x)
+    const selectSpeed = document.getElementById('strings-select-speed');
+    if (selectSpeed) {
+      selectSpeed.value = String(this.timeScale);
+      selectSpeed.onchange = (e) => {
+        this.timeScale = parseFloat(e.target.value);
+      };
+    }
+
+    // Toggles
+    const chkEnv = document.getElementById('strings-chk-envelope');
+    if (chkEnv) {
+      chkEnv.checked = this.showEnvelope;
+      chkEnv.onchange = (e) => { this.showEnvelope = e.target.checked; };
+    }
+
+    const chkNodes = document.getElementById('strings-chk-nodes');
+    if (chkNodes) {
+      chkNodes.checked = this.showNodes;
+      chkNodes.onchange = (e) => { this.showNodes = e.target.checked; };
+    }
+
+    const chkComp = document.getElementById('strings-chk-components');
+    if (chkComp) {
+      chkComp.checked = this.showComponents;
+      chkComp.onchange = (e) => { this.showComponents = e.target.checked; };
+    }
+
+    this.bindHarmonicPills();
+  }
+
+  bindHarmonicPills() {
+    const pills = document.querySelectorAll('.strings-mode-pill');
+    pills.forEach(pill => {
+      pill.onclick = () => {
+        const mode = parseInt(pill.getAttribute('data-harmonic'), 10);
+        if (!isNaN(mode)) {
+          this.harmonic = mode;
+          this.updateHarmonicPills();
+          this.updateUI();
+        }
+      };
+    });
+  }
+
+  updateHarmonicPills() {
+    const pills = document.querySelectorAll('.strings-mode-pill');
+    pills.forEach(pill => {
+      const mode = parseInt(pill.getAttribute('data-harmonic'), 10);
+      pill.classList.toggle('active', mode === this.harmonic);
+    });
+  }
+
+  // ================= ACTUALIZACIÓN TELEMETRÍA Y TABLA =================
+  updateUI() {
+    const v = this.waveSpeed;
+    const f1 = this.fundamentalFrequency;
+    const fn = this.frequency;
+    const lambda = this.wavelength;
+    const { nodes, antinodes } = this.getNodesAndAntinodes();
+
+    const setT = (id, text) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = text;
+    };
+
+    setT('strings-readout-v', `${v.toFixed(1)} m/s`);
+    setT('strings-readout-f1', `${f1.toFixed(2)} Hz`);
+    setT('strings-readout-fn', `${fn.toFixed(2)} Hz`);
+    setT('strings-readout-lambda', `${lambda.toFixed(3)} m`);
+    setT('strings-readout-nodes', `${nodes.length} nodos (incluye extremos)`);
+    setT('strings-readout-antinodes', `${antinodes.length} antinodos`);
+    setT('strings-readout-t', `${this.T.toFixed(0)} N`);
+    setT('strings-readout-mu', `${(this.mu * 1000).toFixed(1)} g/m`);
+
+    this.renderModesTable();
+  }
+
+  renderModesTable() {
+    const container = document.getElementById('strings-table-modes-body');
+    if (!container) return;
+
+    let html = '';
+    const v = this.waveSpeed;
+
+    for (let n = 1; n <= 5; n++) {
+      const lambdaN = (2 * this.L) / n;
+      const fn = (n * v) / (2 * this.L);
+      const isSelected = n === this.harmonic;
+
+      html += `
+        <tr class="${isSelected ? 'active-row' : ''}" style="cursor: pointer;" onclick="window.stringsLabInstance.setHarmonic(${n})">
+          <td><span class="badge-harmonic">n = ${n}</span></td>
+          <td>${n === 1 ? 'Fundamental (1.° armónico)' : `${n}.° armónico`}</td>
+          <td><strong>${fn.toFixed(2)} Hz</strong></td>
+          <td>${lambdaN.toFixed(3)} m</td>
+          <td>
+            <button type="button" class="btn-table-apply ${isSelected ? 'applied' : ''}">
+              ${isSelected ? 'Activo' : 'Cargar'}
+            </button>
+          </td>
+        </tr>
+      `;
+    }
+    container.innerHTML = html;
+  }
+
+  setHarmonic(n) {
+    this.harmonic = n;
+    this.updateHarmonicPills();
+    this.updateUI();
+  }
+
+  // Preconfiguración de experimentos virtuales guiados
+  loadExperiment(expNum) {
+    switch (expNum) {
+      case 1: // Exp 1: Efecto de la tensión (Cuadruplicar tensión: 100 N -> 400 N => velocidad se duplica)
+        this.L = 1.0;
+        this.mu = 0.004;
+        this.T = 400.0;
+        this.harmonic = 1;
+        break;
+      case 2: // Exp 2: Efecto de la densidad lineal (Cuadruplicar mu: 0.004 -> 0.016 kg/m => velocidad se reduce a la mitad)
+        this.L = 1.0;
+        this.T = 100.0;
+        this.mu = 0.016;
+        this.harmonic = 1;
+        break;
+      case 3: // Exp 3: Efecto de la longitud (Reducir L a la mitad: 1.0 m -> 0.5 m => frecuencias se duplican)
+        this.L = 0.5;
+        this.T = 100.0;
+        this.mu = 0.004;
+        this.harmonic = 1;
+        break;
+      case 4: // Exp 4: Armónicos (Observar armónico superior n=4 con 5 nodos y 4 antinodos)
+        this.L = 1.0;
+        this.T = 100.0;
+        this.mu = 0.004;
+        this.harmonic = 4;
+        break;
+    }
+
+    // Actualizar sliders en UI
+    const sL = document.getElementById('strings-slider-l');
+    if (sL) sL.value = String(this.L);
+    const vL = document.getElementById('strings-val-l');
+    if (vL) vL.textContent = `${this.L.toFixed(2)} m`;
+
+    const sT = document.getElementById('strings-slider-t');
+    if (sT) sT.value = String(this.T);
+    const vT = document.getElementById('strings-val-t');
+    if (vT) vT.textContent = `${this.T.toFixed(0)} N`;
+
+    const sMu = document.getElementById('strings-slider-mu');
+    if (sMu) sMu.value = String(this.mu);
+    const vMu = document.getElementById('strings-val-mu');
+    if (vMu) vMu.textContent = `${(this.mu * 1000).toFixed(1)} g/m (${this.mu.toFixed(4)} kg/m)`;
+
+    this.updateHarmonicPills();
+    this.updateUI();
+  }
+}
+
+
+
 /* ======================== notebook-content.js ======================== */
 // notebook-content.js - Contenido Académico Completo del Cuaderno Virtual Universitario de Física 3
 // Movimiento Ondulatorio
@@ -9979,8 +11488,8 @@ class SimulationsLab {
 
 class NotebookApp {
   constructor() {
-    this.currentSpreadIndex = 0; // 0 a 9 pliegos dobles
-    this.totalSpreads = 10;
+    this.currentSpreadIndex = 0; // 0 a 10 pliegos dobles
+    this.totalSpreads = 11;
     this.simLabInstance = null;
     this.mindMapInstance = null;
     this.timelineInstance = null;
@@ -10059,6 +11568,9 @@ class NotebookApp {
             }
           }
         }
+      }
+      if (this.currentSpreadIndex === 9 && index !== 9) {
+        this.destroySpread9Simulations();
       }
 
       this.currentSpreadIndex = index;
@@ -10139,9 +11651,14 @@ class NotebookApp {
         rightHTML = this.renderPage18Doppler();
         break;
       case 9:
-        spreadTitle = "Páginas 19 y 20 &middot; Formulario, Glosario y Bibliografía APA 7";
-        leftHTML = this.renderPage19Evaluacion();
-        rightHTML = this.renderPage20GlosarioBiblio();
+        spreadTitle = "Páginas 19 y 20 &middot; Tubos Sonoros (Pág. 19) y Cuerdas Tensas (Pág. 20)";
+        leftHTML = this.renderPage19Tubos();
+        rightHTML = this.renderPage20Cuerdas();
+        break;
+      case 10:
+        spreadTitle = "Páginas 21 y 22 &middot; Formulario, Glosario y Bibliografía APA 7";
+        leftHTML = this.renderPage21Evaluacion();
+        rightHTML = this.renderPage22GlosarioBiblio();
         break;
     }
 
@@ -10200,6 +11717,8 @@ class NotebookApp {
     } else if (this.currentSpreadIndex === 8) {
       this.mountSpread8Simulations();
     } else if (this.currentSpreadIndex === 9) {
+      this.mountSpread9Simulations();
+    } else if (this.currentSpreadIndex === 10) {
       this.initGlossary();
       this.initFormulaSearch();
       this.initComprehensiveQuiz();
@@ -10271,7 +11790,11 @@ class NotebookApp {
           <span class="index-arrow-icon">→</span>
         </div>
         <div class="index-unit-link-card" onclick="window.notebookApp.goToSpread(9);">
-          <span><strong>10.</strong> Glosario Técnico &amp; Referencias APA 7</span>
+          <span><strong>10.</strong> Tubos Sonoros (Pág. 19) y Cuerdas Tensas (Pág. 20)</span>
+          <span class="index-arrow-icon">→</span>
+        </div>
+        <div class="index-unit-link-card" onclick="window.notebookApp.goToSpread(10);">
+          <span><strong>11.</strong> Formulario, Glosario Técnico &amp; Normas APA 7 (Págs. 21-22)</span>
           <span class="index-arrow-icon">→</span>
         </div>
       </div>
@@ -10835,12 +12358,358 @@ class NotebookApp {
     });
   }
 
-  // ================= PÁGINA 19 Y 20: EVALUACIÓN, GLOSARIO Y BIBLIOGRAFÍA =================
-  renderPage19Evaluacion() {
+  // ================= MONTAJE DE SIMULADORES EN PLIEGO 9 (PÁGS. 19 Y 20) =================
+  mountSpread9Simulations() {
+    this.destroySpread9Simulations();
+
+    const doMount = () => {
+      // 1. Montar Laboratorio de Tubos Sonoros en Pág. 19
+      try {
+        if (typeof TubesLab === 'function' && document.getElementById('tubesCanvas')) {
+          window.tubesLabInstance = new TubesLab('tubesCanvas');
+          window.tubesLabInstance.mount();
+        }
+      } catch (err) {
+        console.error('[NotebookApp] Error montando TubesLab:', err);
+      }
+
+      // 2. Montar Laboratorio de Cuerdas Tensas en Pág. 20
+      try {
+        if (typeof StringsLab === 'function' && document.getElementById('stringsCanvas')) {
+          window.stringsLabInstance = new StringsLab('stringsCanvas');
+          window.stringsLabInstance.mount();
+        }
+      } catch (err) {
+        console.error('[NotebookApp] Error montando StringsLab:', err);
+      }
+    };
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        setTimeout(doMount, 60);
+      });
+    });
+  }
+
+  destroySpread9Simulations() {
+    if (window.tubesLabInstance && typeof window.tubesLabInstance.destroy === 'function') {
+      window.tubesLabInstance.destroy();
+      window.tubesLabInstance = null;
+    }
+    if (window.stringsLabInstance && typeof window.stringsLabInstance.destroy === 'function') {
+      window.stringsLabInstance.destroy();
+      window.stringsLabInstance = null;
+    }
+  }
+
+  // ================= PÁGINA 19: SIMULADOR DE TUBOS SONOROS =================
+  renderPage19Tubos() {
+    return `
+      <div class="page-top-header">
+        <div class="header-academic-label">Laboratorio Virtual de Acústica</div>
+        <div class="page-number-pill">Pág. 19</div>
+      </div>
+      <h2 class="page-main-heading">Resonancia en Tubos Sonoros</h2>
+      <p class="page-lead-caption">Estudio de ondas estacionarias longitudinales en columnas de aire, distribución de nodos y antinodos de desplazamiento y presión acústica.</p>
+
+      <!-- Selector de Tipo de Tubo y Armónicos -->
+      <div class="sim-controls-card">
+        <div class="sim-control-row">
+          <label for="tubes-type-select" class="sim-control-label">Geometría del Tubo:</label>
+          <select id="tubes-type-select" class="sim-select" style="flex:1; max-width:none;">
+            <option value="open-open">Tubo Abierto en ambos extremos (λₙ = 2L/n, fₙ = nv/2L)</option>
+            <option value="open-closed">Tubo Cerrado en un extremo (λₘ = 4L/(2m−1), fₘ = (2m−1)v/4L)</option>
+          </select>
+        </div>
+        <div style="margin-top: 8px;">
+          <div style="font-size:0.75rem; font-weight:700; color:#475569; margin-bottom:4px;">Modo de Resonancia / Armónico:</div>
+          <div class="sim-mode-pills-row">
+            <button type="button" class="tubes-mode-pill active" data-mode="1">Modo 1 &middot; <span class="pill-harmonic-name">n = 1</span></button>
+            <button type="button" class="tubes-mode-pill" data-mode="2">Modo 2 &middot; <span class="pill-harmonic-name">n = 2</span></button>
+            <button type="button" class="tubes-mode-pill" data-mode="3">Modo 3 &middot; <span class="pill-harmonic-name">n = 3</span></button>
+            <button type="button" class="tubes-mode-pill" data-mode="4">Modo 4 &middot; <span class="pill-harmonic-name">n = 4</span></button>
+            <button type="button" class="tubes-mode-pill" data-mode="5">Modo 5 &middot; <span class="pill-harmonic-name">n = 5</span></button>
+          </div>
+        </div>
+      </div>
+
+      <!-- VIEWPORT DEL LIENZO CANVAS 2D -->
+      <div class="notebook-tubes-viewport">
+        <canvas id="tubesCanvas"></canvas>
+      </div>
+
+      <!-- Barra de Transporte y Toggles Visuales -->
+      <div class="physics-scrubber-bar">
+        <div class="scrubber-controls">
+          <button type="button" id="tubes-btn-play" class="btn-ctrl-primary" style="display:inline-flex; align-items:center; gap:5px; padding:5px 12px; font-size:0.8rem; font-weight:700; border-radius:8px; background:#7c3aed; color:#fff; border:none; cursor:pointer;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+            Pausar
+          </button>
+          <button type="button" id="tubes-btn-reset" class="btn-ctrl-round" title="Reiniciar tiempo" style="width:28px; height:28px; border-radius:50%; border:1px solid #cbd5e1; background:#fff; cursor:pointer; display:flex; align-items:center; justify-content:center;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+          </button>
+        </div>
+        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:0.75rem; color:#334155; font-weight:600;">
+          <label style="display:inline-flex; align-items:center; gap:4px; cursor:pointer;"><input type="checkbox" id="tubes-chk-particles" checked> Partículas</label>
+          <label style="display:inline-flex; align-items:center; gap:4px; cursor:pointer; color:#0284c7;"><input type="checkbox" id="tubes-chk-disp" checked> Desplazamiento ξ</label>
+          <label style="display:inline-flex; align-items:center; gap:4px; cursor:pointer; color:#d97706;"><input type="checkbox" id="tubes-chk-pres" checked> Presión ΔP</label>
+          <label style="display:inline-flex; align-items:center; gap:4px; cursor:pointer;"><input type="checkbox" id="tubes-chk-nodes" checked> Nodos / Antinodos</label>
+        </div>
+      </div>
+
+      <!-- Sliders de Parámetros Físicos -->
+      <div class="sim-controls-card">
+        <div class="sim-control-row">
+          <label for="tubes-slider-l" class="sim-control-label">Longitud del Tubo (L):</label>
+          <input type="range" id="tubes-slider-l" class="sim-slider-input" min="0.4" max="3.0" step="0.05" value="1.0">
+          <span class="sim-val-pill" id="tubes-val-l">1.00 m</span>
+        </div>
+        <div class="sim-control-row">
+          <label for="tubes-slider-v" class="sim-control-label">Velocidad del Sonido (v):</label>
+          <input type="range" id="tubes-slider-v" class="sim-slider-input" min="300" max="380" step="1" value="340">
+          <span class="sim-val-pill" id="tubes-val-v">340 m/s</span>
+        </div>
+        <div class="sim-control-row">
+          <label for="tubes-slider-a" class="sim-control-label">Amplitud de Excitación (A):</label>
+          <input type="range" id="tubes-slider-a" class="sim-slider-input" min="0.01" max="0.08" step="0.005" value="0.04">
+        </div>
+      </div>
+
+      <!-- Panel de Telemetría Numérica -->
+      <div class="sim-telemetry-grid">
+        <div class="sim-metric-card">
+          <div class="sim-metric-label">Fundamental (f₁)</div>
+          <div class="sim-metric-val" id="tubes-readout-f1" style="color:#7c3aed;">170.0 Hz</div>
+        </div>
+        <div class="sim-metric-card">
+          <div class="sim-metric-label">Frecuencia Actual (fₙ)</div>
+          <div class="sim-metric-val" id="tubes-readout-fn" style="color:#0284c7;">170.0 Hz</div>
+        </div>
+        <div class="sim-metric-card">
+          <div class="sim-metric-label">Longitud de Onda (λ)</div>
+          <div class="sim-metric-val" id="tubes-readout-lambda" style="color:#059669;">2.000 m</div>
+        </div>
+        <div class="sim-metric-card">
+          <div class="sim-metric-label">Modo / Armónico</div>
+          <div class="sim-metric-val" id="tubes-readout-harmonic" style="font-size:0.8rem;">n = 1</div>
+        </div>
+        <div class="sim-metric-card" style="grid-column: span 2;">
+          <div class="sim-metric-label">Distribución Nodos/Antinodos (ξ)</div>
+          <div class="sim-metric-val" id="tubes-readout-nodes-count" style="font-size:0.82rem; color:#475569;">1 nodos / 2 antinodos</div>
+        </div>
+      </div>
+
+      <!-- Tabla de los 5 Modos Permitidos -->
+      <h3 class="unit-subtitle-h3" style="font-size:0.92rem; margin:14px 0 6px;">Primeros 5 Modos Permitidos de Resonancia</h3>
+      <div class="sim-modes-table-wrap">
+        <table class="sim-modes-table">
+          <thead>
+            <tr>
+              <th>Armónico</th>
+              <th>Denominación</th>
+              <th>Frecuencia (Hz)</th>
+              <th>Longitud Onda (λ)</th>
+              <th>Acción</th>
+            </tr>
+          </thead>
+          <tbody id="tubes-table-modes-body"></tbody>
+        </table>
+      </div>
+
+      <!-- Sección Explora y Experimenta -->
+      <h3 class="unit-subtitle-h3" style="font-size:0.92rem; margin:16px 0 8px;">🔬 Explora y Experimenta</h3>
+      <div class="sim-activities-list">
+        <div class="sim-activity-card">
+          <div class="sim-activity-title">
+            <span>1. Efecto de la longitud del tubo</span>
+            <button type="button" class="sim-activity-btn" onclick="window.tubesLabInstance.loadExploration('shorten-l');">Probar L = 0.5 m</button>
+          </div>
+          <p class="sim-activity-desc"><strong>Pregunta:</strong> ¿Qué ocurre con la frecuencia fundamental al reducir la longitud a la mitad? <em>Observación:</em> Dado que f₁ = v/(2L), la frecuencia se duplica (relación inversamente proporcional).</p>
+        </div>
+        <div class="sim-activity-card">
+          <div class="sim-activity-title">
+            <span>2. Tubo abierto vs. Tubo cerrado</span>
+            <button type="button" class="sim-activity-btn" onclick="window.tubesLabInstance.loadExploration('compare-closed');">Probar Tubo Cerrado</button>
+          </div>
+          <p class="sim-activity-desc"><strong>Pregunta:</strong> ¿Por qué un tubo cerrado-abierto suena una octava más grave que uno abierto de igual longitud? <em>Física:</em> f₁^(cerrado) = v/(4L) = ½ f₁^(abierto), produciendo un tono una octava más bajo.</p>
+        </div>
+        <div class="sim-activity-card">
+          <div class="sim-activity-title">
+            <span>3. ¿Por qué el tubo cerrado solo presenta armónicos impares?</span>
+            <button type="button" class="sim-activity-btn" onclick="window.tubesLabInstance.loadExploration('higher-harmonic');">Ver Modo 3 (n = 5)</button>
+          </div>
+          <p class="sim-activity-desc"><strong>Condición de frontera:</strong> El fondo cerrado fuerza un nodo de desplazamiento (ξ=0) y la boca abierta un antinodo (|ξ|=A). Esta asimetría solo puede albergar un número impar de cuartos de onda: L = (2m−1)λ/4.</p>
+        </div>
+        <div class="sim-activity-card">
+          <div class="sim-activity-title">
+            <span>4. Nodos de Desplazamiento vs. Nodos de Presión</span>
+          </div>
+          <p class="sim-activity-desc"><strong>Diferenciación crucial:</strong> En los extremos abiertos las moléculas se mueven libremente (antinodo de ξ), pero la presión está fija a la atmosférica (nodo de ΔP). En la pared cerrada las moléculas chocan sin poder avanzar (nodo de ξ), produciendo las máximas oscilaciones de compresión (antinodo de ΔP).</p>
+        </div>
+      </div>
+    `;
+  }
+
+  // ================= PÁGINA 20: SIMULADOR DE CUERDAS TENSAS =================
+  renderPage20Cuerdas() {
+    return `
+      <div class="page-top-header">
+        <div class="header-academic-label">Laboratorio de Ondas Estacionarias</div>
+        <div class="page-number-pill">Pág. 20</div>
+      </div>
+      <h2 class="page-main-heading">Ondas Estacionarias en Cuerdas Tensas</h2>
+      <p class="page-lead-caption">Modos normales de vibración, relación dinámica v = √(T/μ) y superposición de ondas viajeras incidentes y reflejadas.</p>
+
+      <!-- Selector de Armónicos -->
+      <div class="sim-controls-card">
+        <div style="font-size:0.75rem; font-weight:700; color:#475569; margin-bottom:4px;">Modo Normal de Vibración (Armónico n):</div>
+        <div class="sim-mode-pills-row">
+          <button type="button" class="strings-mode-pill active" data-harmonic="1">n = 1 (Fundamental)</button>
+          <button type="button" class="strings-mode-pill" data-harmonic="2">n = 2 (2.° armónico)</button>
+          <button type="button" class="strings-mode-pill" data-harmonic="3">n = 3 (3.° armónico)</button>
+          <button type="button" class="strings-mode-pill" data-harmonic="4">n = 4 (4.° armónico)</button>
+          <button type="button" class="strings-mode-pill" data-harmonic="5">n = 5 (5.° armónico)</button>
+          <button type="button" class="strings-mode-pill" data-harmonic="6">n = 6 (6.° armónico)</button>
+        </div>
+      </div>
+
+      <!-- VIEWPORT DEL LIENZO CANVAS 2D -->
+      <div class="notebook-strings-viewport">
+        <canvas id="stringsCanvas"></canvas>
+      </div>
+
+      <!-- Barra de Transporte y Opciones Visuales -->
+      <div class="physics-scrubber-bar">
+        <div class="scrubber-controls">
+          <button type="button" id="strings-btn-play" class="btn-ctrl-primary" style="display:inline-flex; align-items:center; gap:5px; padding:5px 12px; font-size:0.8rem; font-weight:700; border-radius:8px; background:#7c3aed; color:#fff; border:none; cursor:pointer;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+            Pausar
+          </button>
+          <button type="button" id="strings-btn-reset" class="btn-ctrl-round" title="Reiniciar tiempo" style="width:28px; height:28px; border-radius:50%; border:1px solid #cbd5e1; background:#fff; cursor:pointer; display:flex; align-items:center; justify-content:center;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+          </button>
+          <select id="strings-select-speed" class="sim-select" style="padding:3px 8px; font-size:0.75rem;">
+            <option value="0.25">0.25x (Lento)</option>
+            <option value="0.5">0.5x</option>
+            <option value="1.0" selected>1.0x (Normal)</option>
+          </select>
+        </div>
+        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:0.75rem; color:#334155; font-weight:600;">
+          <label style="display:inline-flex; align-items:center; gap:4px; cursor:pointer; color:#9333ea;"><input type="checkbox" id="strings-chk-envelope" checked> Envolvente &plusmn;A</label>
+          <label style="display:inline-flex; align-items:center; gap:4px; cursor:pointer;"><input type="checkbox" id="strings-chk-nodes" checked> Nodos/Antinodos</label>
+          <label style="display:inline-flex; align-items:center; gap:4px; cursor:pointer; color:#ef4444;"><input type="checkbox" id="strings-chk-components"> Ondas componentes (y_inc, y_ref)</label>
+        </div>
+      </div>
+
+      <!-- Sliders de Parámetros Físicos con Unidades -->
+      <div class="sim-controls-card">
+        <div class="sim-control-row">
+          <label for="strings-slider-l" class="sim-control-label">Longitud de la Cuerda (L):</label>
+          <input type="range" id="strings-slider-l" class="sim-slider-input" min="0.4" max="3.0" step="0.05" value="1.0">
+          <span class="sim-val-pill" id="strings-val-l">1.00 m</span>
+        </div>
+        <div class="sim-control-row">
+          <label for="strings-slider-t" class="sim-control-label">Tensión Aplicada (T):</label>
+          <input type="range" id="strings-slider-t" class="sim-slider-input" min="10" max="400" step="5" value="100">
+          <span class="sim-val-pill" id="strings-val-t">100 N</span>
+        </div>
+        <div class="sim-control-row">
+          <label for="strings-slider-mu" class="sim-control-label">Densidad Lineal (μ):</label>
+          <input type="range" id="strings-slider-mu" class="sim-slider-input" min="0.001" max="0.030" step="0.001" value="0.004">
+          <span class="sim-val-pill" id="strings-val-mu">4.0 g/m (0.0040 kg/m)</span>
+        </div>
+        <div class="sim-control-row">
+          <label for="strings-slider-a" class="sim-control-label">Amplitud Máxima (A):</label>
+          <input type="range" id="strings-slider-a" class="sim-slider-input" min="0.01" max="0.12" step="0.005" value="0.05">
+        </div>
+      </div>
+
+      <!-- Panel de Telemetría Dinámica -->
+      <div class="sim-telemetry-grid">
+        <div class="sim-metric-card">
+          <div class="sim-metric-label">Rapidez de Onda (v)</div>
+          <div class="sim-metric-val" id="strings-readout-v" style="color:#0284c7;">158.1 m/s</div>
+        </div>
+        <div class="sim-metric-card">
+          <div class="sim-metric-label">Fundamental (f₁)</div>
+          <div class="sim-metric-val" id="strings-readout-f1" style="color:#7c3aed;">79.06 Hz</div>
+        </div>
+        <div class="sim-metric-card">
+          <div class="sim-metric-label">Frecuencia Modo (fₙ)</div>
+          <div class="sim-metric-val" id="strings-readout-fn" style="color:#d97706;">79.06 Hz</div>
+        </div>
+        <div class="sim-metric-card">
+          <div class="sim-metric-label">Longitud Onda (λₙ)</div>
+          <div class="sim-metric-val" id="strings-readout-lambda" style="color:#059669;">2.000 m</div>
+        </div>
+        <div class="sim-metric-card">
+          <div class="sim-metric-label">Nodos Totales (N)</div>
+          <div class="sim-metric-val" id="strings-readout-nodes" style="font-size:0.8rem;">2 nodos (x=0, x=L)</div>
+        </div>
+        <div class="sim-metric-card">
+          <div class="sim-metric-label">Antinodos (A)</div>
+          <div class="sim-metric-val" id="strings-readout-antinodes" style="font-size:0.8rem; color:#10b981;">1 antinodo</div>
+        </div>
+      </div>
+
+      <!-- Tabla de los 5 Primeros Armónicos -->
+      <h3 class="unit-subtitle-h3" style="font-size:0.92rem; margin:14px 0 6px;">Tabla de Modos Normales y Frecuencias Resonantes</h3>
+      <div class="sim-modes-table-wrap">
+        <table class="sim-modes-table">
+          <thead>
+            <tr>
+              <th>Armónico</th>
+              <th>Descripción</th>
+              <th>Frecuencia (Hz)</th>
+              <th>Longitud Onda (λ)</th>
+              <th>Seleccionar</th>
+            </tr>
+          </thead>
+          <tbody id="strings-table-modes-body"></tbody>
+        </table>
+      </div>
+
+      <!-- Laboratorio Experimental Guiado -->
+      <h3 class="unit-subtitle-h3" style="font-size:0.92rem; margin:16px 0 8px;">🧪 Experimentos Virtuales Guiados</h3>
+      <div class="sim-activities-list">
+        <div class="sim-activity-card">
+          <div class="sim-activity-title">
+            <span>Experimento 1. Efecto de la tensión mecánica (T)</span>
+            <button type="button" class="sim-activity-btn" onclick="window.stringsLabInstance.loadExperiment(1);">Cargar Exp 1 (T = 400 N)</button>
+          </div>
+          <p class="sim-activity-desc"><strong>Hipótesis:</strong> ¿Qué sucede con la velocidad v y la frecuencia f si cuadruplicamos la tensión manteniendo constantes L y μ? <em>Resultado:</em> v = √(400/0.004) = 316.2 m/s, exactamente el doble de 158.1 m/s (relación v ∝ √T).</p>
+        </div>
+        <div class="sim-activity-card">
+          <div class="sim-activity-title">
+            <span>Experimento 2. Efecto de la densidad lineal de masa (μ)</span>
+            <button type="button" class="sim-activity-btn" onclick="window.stringsLabInstance.loadExperiment(2);">Cargar Exp 2 (μ = 16 g/m)</button>
+          </div>
+          <p class="sim-activity-desc"><strong>Hipótesis:</strong> Al cuatriplicar la densidad lineal a tensión constante, la inercia de la cuerda frena la propagación de perturbaciones. <em>Resultado:</em> v se reduce a la mitad (v ∝ 1/√μ) y la fundamental cae a 39.5 Hz.</p>
+        </div>
+        <div class="sim-activity-card">
+          <div class="sim-activity-title">
+            <span>Experimento 3. Efecto de la longitud de la cuerda (L)</span>
+            <button type="button" class="sim-activity-btn" onclick="window.stringsLabInstance.loadExperiment(3);">Cargar Exp 3 (L = 0.5 m)</button>
+          </div>
+          <p class="sim-activity-desc"><strong>Principio de instrumentos de cuerda:</strong> Al pulsar un traste o pisar la cuerda reduciendo su longitud libre a la mitad, la velocidad v no cambia, pero λ se reduce a la mitad y la frecuencia se duplica (octava superior).</p>
+        </div>
+        <div class="sim-activity-card">
+          <div class="sim-activity-title">
+            <span>Experimento 4. Análisis de nodos y antinodos en armónicos</span>
+            <button type="button" class="sim-activity-btn" onclick="window.stringsLabInstance.loadExperiment(4);">Cargar Exp 4 (Armónico n = 4)</button>
+          </div>
+          <p class="sim-activity-desc"><strong>Teoría de modos normales:</strong> Para el 4.° armónico se aprecian 5 nodos fijos (puntos de interferencia destructiva permanente) y 4 antinodos vibrando con amplitud 2A.</p>
+        </div>
+      </div>
+    `;
+  }
+
+  // ================= PÁGINA 21 Y 22: EVALUACIÓN, GLOSARIO Y BIBLIOGRAFÍA =================
+  renderPage21Evaluacion() {
     return `
       <div class="page-top-header">
         <div class="header-academic-label">Compendio y Evaluación</div>
-        <div class="page-number-pill">Pág. 19</div>
+        <div class="page-number-pill">Pág. 21</div>
       </div>
       <h2 class="page-main-heading">Formulario y Autoevaluación</h2>
       <p class="page-lead-caption">Consulta fórmulas fundamentales y evalúa tu dominio general del curso.</p>
@@ -10855,11 +12724,11 @@ class NotebookApp {
     `;
   }
 
-  renderPage20GlosarioBiblio() {
+  renderPage22GlosarioBiblio() {
     return `
       <div class="page-top-header">
         <div class="header-academic-label">Glosario y Bibliografía</div>
-        <div class="page-number-pill">Pág. 20</div>
+        <div class="page-number-pill">Pág. 22</div>
       </div>
       <h2 class="page-main-heading">Glosario Técnico &amp; Normas APA 7</h2>
       <p class="page-lead-caption">Términos científicos normativos y fuentes académicas universitarias.</p>
@@ -11080,6 +12949,8 @@ class NotebookApp {
   try { global.DopplerCanvas = DopplerCanvas; } catch(e) {}
   try { global.DopplerUI = DopplerUI; } catch(e) {}
   try { global.WaveApp = WaveApp; } catch(e) {}
+  try { global.TubesLab = TubesLab; } catch(e) {}
+  try { global.StringsLab = StringsLab; } catch(e) {}
   try { global.NOTEBOOK_METADATA = NOTEBOOK_METADATA; } catch(e) {}
   try { global.PRELIMINARY_SECTIONS = PRELIMINARY_SECTIONS; } catch(e) {}
   try { global.UNITS = UNITS; } catch(e) {}

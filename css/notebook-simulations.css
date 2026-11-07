@@ -470,3 +470,303 @@
   margin: 0 0 10px;
 }
 
+/* ==========================================================================
+   LABORATORIOS INTERACTIVOS: TUBOS SONOROS (PÁG. 19) Y CUERDAS TENSAS (PÁG. 20)
+   ========================================================================== */
+
+.notebook-tubes-viewport,
+.notebook-strings-viewport {
+  position: relative;
+  width: 100%;
+  height: 270px;
+  min-height: 230px;
+  max-height: 290px;
+  background: #0b0f19;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22);
+  margin-bottom: 10px;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+.notebook-tubes-viewport canvas,
+.notebook-strings-viewport canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+
+/* Selector de armónicos en píldoras */
+.sim-mode-pills-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.sim-select {
+  background: #ffffff !important;
+  border: 1.5px solid #cbd5e1 !important;
+  color: #0f172a !important;
+  font-size: 0.82rem !important;
+  font-weight: 700 !important;
+  padding: 5px 10px !important;
+  border-radius: 8px !important;
+  cursor: pointer;
+  outline: none;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  transition: all 0.2s ease;
+}
+
+.sim-select:focus {
+  border-color: #6366f1 !important;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2) !important;
+}
+
+.tubes-mode-pill,
+.strings-mode-pill {
+  padding: 5px 12px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  border-radius: 20px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #334155;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.tubes-mode-pill:hover,
+.strings-mode-pill:hover {
+  border-color: #7c3aed;
+  background: #f5f3ff;
+  color: #6d28d9;
+}
+
+.tubes-mode-pill.active {
+  background: linear-gradient(135deg, #0284c7, #0369a1);
+  color: #ffffff;
+  border-color: #0284c7;
+  box-shadow: 0 2px 8px rgba(2, 132, 199, 0.35);
+}
+
+.strings-mode-pill.active {
+  background: linear-gradient(135deg, #7c3aed, #6d28d9);
+  color: #ffffff;
+  border-color: #7c3aed;
+  box-shadow: 0 2px 8px rgba(124, 58, 237, 0.35);
+}
+
+/* Panel de controles agrupados */
+.sim-controls-card {
+  background: rgba(248, 250, 252, 0.95);
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+}
+
+.sim-control-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+  font-size: 0.82rem;
+}
+
+.sim-control-row:last-child {
+  margin-bottom: 0;
+}
+
+.sim-control-label {
+  font-weight: 600;
+  color: #1e293b;
+  min-width: 140px;
+  flex-shrink: 0;
+}
+
+.sim-slider-input {
+  flex: 1;
+  accent-color: #7c3aed;
+  cursor: pointer;
+  height: 5px;
+}
+
+.sim-val-pill {
+  font-family: monospace;
+  font-size: 0.8rem;
+  font-weight: 700;
+  background: #e2e8f0;
+  color: #0f172a;
+  padding: 2px 8px;
+  border-radius: 6px;
+  min-width: 65px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+/* Grilla de Telemetría Numérica */
+.sim-telemetry-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.sim-metric-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 8px 10px;
+  text-align: center;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.sim-metric-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #64748b;
+  letter-spacing: 0.03em;
+  margin-bottom: 2px;
+}
+
+.sim-metric-val {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #0f172a;
+  font-family: monospace;
+}
+
+/* Tabla de Modos y Armónicos */
+.sim-modes-table-wrap {
+  overflow-x: auto;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  margin-bottom: 14px;
+}
+
+.sim-modes-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+  background: #ffffff;
+  text-align: left;
+}
+
+.sim-modes-table th {
+  background: #f1f5f9;
+  color: #475569;
+  font-weight: 700;
+  padding: 8px 10px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.sim-modes-table td {
+  padding: 7px 10px;
+  border-bottom: 1px solid #f1f5f9;
+  color: #1e293b;
+}
+
+.sim-modes-table tr.active-row {
+  background: #ede9fe;
+}
+
+.sim-modes-table tr:hover:not(.active-row) {
+  background: #f8fafc;
+}
+
+.badge-harmonic {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  background: #e0e7ff;
+  color: #3730a3;
+  font-family: monospace;
+}
+
+.btn-table-apply {
+  padding: 3px 8px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-table-apply.applied {
+  background: #7c3aed;
+  color: #ffffff;
+  border-color: #7c3aed;
+}
+
+/* Tarjetas de actividades experimentales */
+.sim-activities-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.sim-activity-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 10px 14px;
+  border-left: 4px solid #7c3aed;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.sim-activity-title {
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sim-activity-desc {
+  font-size: 0.8rem;
+  color: #475569;
+  line-height: 1.45;
+  margin-bottom: 8px;
+}
+
+.sim-activity-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  border-radius: 6px;
+  background: #f3e8ff;
+  color: #6b21a8;
+  border: 1px solid #d8b4fe;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.sim-activity-btn:hover {
+  background: #7c3aed;
+  color: #ffffff;
+  border-color: #7c3aed;
+}
+
+
