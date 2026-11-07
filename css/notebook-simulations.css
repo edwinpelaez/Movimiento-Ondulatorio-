@@ -1,0 +1,472 @@
+/* ==========================================================================
+   css/notebook-simulations.css
+   Estilos dedicados para las Simulaciones de Ondas (Pág. 17)
+   y Efecto Doppler (Pág. 18) integradas en el Cuaderno Virtual Universitario.
+   Adapta los lienzos y controles al pliego de páginas sin alterar el diseño
+   ni las dimensiones del cuaderno argollado.
+   ========================================================================== */
+
+/* ================== VIEWPORTS DE LOS LIENZOS ================== */
+.notebook-sim-viewport,
+.notebook-doppler-viewport {
+  position: relative;
+  width: 100%;
+  height: 270px;
+  min-height: 240px;
+  max-height: 300px;
+  background: #090d16;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22);
+  margin-bottom: 10px;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+.notebook-sim-viewport canvas,
+.notebook-doppler-viewport canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+
+/* ================== BARRA DE REPRODUCCIÓN / SCRUBBER ================== */
+.book-page .physics-scrubber-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  background: rgba(248, 250, 252, 0.95);
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  margin-bottom: 10px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+
+.book-page .scrubber-controls {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.book-page .btn-ctrl-round {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #1e293b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.book-page .btn-ctrl-round:hover {
+  background: #f1f5f9;
+  border-color: #7c3aed;
+  color: #7c3aed;
+  transform: scale(1.06);
+}
+
+.book-page .btn-ctrl-round.btn-ctrl-main {
+  width: 32px;
+  height: 32px;
+  background: #6d28d9;
+  color: #ffffff;
+  border-color: #6d28d9;
+}
+
+.book-page .btn-ctrl-round.btn-ctrl-main:hover {
+  background: #5b21b6;
+}
+
+.book-page .scrubber-slider-wrapper {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  margin: 0 6px;
+  min-width: 60px;
+}
+
+.book-page .scrubber-range {
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  background: #e2e8f0;
+  outline: none;
+  accent-color: #6d28d9;
+  cursor: pointer;
+}
+
+.book-page .scrubber-time-badge {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: #334155;
+  white-space: nowrap;
+  background: #ffffff;
+  padding: 2px 7px;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+}
+
+/* ================== TARJETAS ADAPTADAS AL CUADERNO ================== */
+.notebook-sim-card {
+  background: rgba(255, 255, 255, 0.98);
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+  box-sizing: border-box;
+}
+
+.notebook-sim-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.notebook-sim-card-title {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #0f172a;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin: 0;
+}
+
+/* Tarjeta de Onda Resultante en Pág. 17 */
+.book-page .resultant-summary-card {
+  background: linear-gradient(135deg, rgba(255, 241, 242, 0.95), rgba(255, 228, 230, 0.9));
+  border: 1px solid #fecdd3;
+  border-radius: 10px;
+  padding: 8px 12px;
+  margin-bottom: 10px;
+}
+.book-page .res-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.book-page .res-title-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+  color: #9f1239;
+}
+.book-page .res-glow-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #f43f5e;
+  box-shadow: 0 0 6px #f43f5e;
+}
+.book-page .math-symbol-sigma {
+  font-weight: 700;
+  color: #e11d48;
+  font-family: var(--font-mono, monospace);
+  font-size: 0.85rem;
+}
+.book-page .res-card-caption {
+  font-size: 0.74rem;
+  color: #64748b;
+  margin-top: 3px;
+  margin-bottom: 0;
+}
+
+/* Lista de ondas componentes en Pág. 17 */
+.book-page .waves-list-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.book-page .wave-component-card {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-left-width: 4px;
+  border-radius: 8px;
+  padding: 8px 10px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+.book-page .wave-card-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.book-page .wave-title-input {
+  border: none;
+  background: transparent;
+  font-weight: 600;
+  font-size: 0.82rem;
+  color: #1e293b;
+  width: 110px;
+}
+.book-page .wave-expr-input {
+  width: 100%;
+  padding: 5px 8px;
+  font-family: var(--font-mono, monospace);
+  font-size: 0.8rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #f8fafc;
+  color: #0f172a;
+  margin-bottom: 6px;
+  box-sizing: border-box;
+}
+
+/* Presets del Laboratorio GeoGebra en Pág. 17 */
+.book-page .presets-cards-container {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+}
+.book-page .preset-card {
+  padding: 6px 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #ffffff;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.book-page .preset-card:hover {
+  background: #f5f3ff;
+  border-color: #7c3aed;
+}
+.book-page .preset-card.active {
+  background: #ede9fe;
+  border-color: #6d28d9;
+}
+.book-page .preset-card-title {
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: #1e293b;
+  margin: 0;
+  line-height: 1.25;
+}
+
+/* ================== PÁGINA 18: EFECTO DOPPLER ================== */
+
+/* HUD Doppler */
+.notebook-doppler-viewport .canvas-hud {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.notebook-doppler-viewport .hud-chip {
+  background: rgba(15, 23, 42, 0.88);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 0.7rem;
+  color: #f8fafc;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.notebook-doppler-viewport .hud-indicator {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #10b981;
+  display: inline-block;
+}
+
+.notebook-doppler-viewport .hud-chip.sonic .hud-indicator {
+  background: #f59e0b;
+}
+
+.notebook-doppler-viewport .hud-chip.supersonic .hud-indicator {
+  background: #f43f5e;
+}
+
+.notebook-doppler-viewport .canvas-toolbar {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  z-index: 10;
+}
+
+.notebook-doppler-viewport .canvas-toolbar .btn-icon {
+  width: 28px;
+  height: 28px;
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #f8fafc;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  padding: 0;
+}
+
+.notebook-doppler-viewport .canvas-toolbar .btn-icon:hover {
+  background: #0284c7;
+  color: #ffffff;
+}
+
+.notebook-doppler-viewport .toast-event-banner {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(15, 23, 42, 0.92);
+  color: #f8fafc;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 0.7rem;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s;
+  white-space: nowrap;
+  z-index: 10;
+}
+
+.notebook-doppler-viewport .toast-event-banner.visible {
+  opacity: 1;
+}
+
+/* Presets del efecto Doppler */
+.doppler-presets-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 5px;
+  margin-bottom: 4px;
+}
+
+.preset-chip-btn {
+  padding: 5px 8px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #334155;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.preset-chip-btn:hover {
+  background: #f0fdf4;
+  border-color: #0284c7;
+  color: #0284c7;
+}
+
+.preset-chip-btn.active {
+  background: #0284c7;
+  color: #ffffff;
+  border-color: #0284c7;
+  box-shadow: 0 2px 6px rgba(2, 132, 199, 0.3);
+}
+
+.control-val-badge {
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+/* Modales para Doppler (Escenarios y Teoría) */
+.doppler-modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(10, 14, 23, 0.75);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+.doppler-modal-backdrop.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.doppler-modal-dialog {
+  background: #ffffff;
+  color: #0f172a;
+  border-radius: 14px;
+  max-width: 620px;
+  width: 90%;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+}
+
+.doppler-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 18px;
+  border-bottom: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+
+.doppler-modal-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+}
+
+.doppler-modal-body {
+  padding: 16px 18px;
+  overflow-y: auto;
+  font-size: 0.85rem;
+  line-height: 1.55;
+  color: #334155;
+}
+
+.doppler-modal-body h4 {
+  color: #6d28d9;
+  font-size: 0.92rem;
+  margin: 12px 0 4px;
+}
+
+.doppler-modal-body p {
+  margin: 0 0 10px;
+}
+
