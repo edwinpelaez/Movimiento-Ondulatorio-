@@ -78,6 +78,31 @@
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
         <span class="btn-text">Glosario</span>
       </button>
+
+      <!-- Control Interactivo de Sonido de Papel (Mute y Volumen Ajustable) -->
+      <div class="sound-control-wrapper" id="sound-control-wrapper">
+        <button type="button" class="btn-action btn-sound-toggle" id="btn-sound-toggle" title="Efecto de sonido de papel: Activado (70%)" aria-label="Efecto de sonido de papel">
+          <svg class="sound-icon-on" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+            <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+            <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+          </svg>
+          <svg class="sound-icon-off" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;">
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+            <line x1="23" y1="9" x2="17" y2="15"/>
+            <line x1="17" y1="9" x2="23" y2="15"/>
+          </svg>
+          <span class="btn-text">Sonido</span>
+        </button>
+        <div class="sound-slider-popover" id="sound-slider-popover" role="region" aria-label="Control de volumen de sonido de papel">
+          <div class="sound-popover-title-row">
+            <span class="sound-popover-label">Efecto Hoja</span>
+            <span class="sound-popover-val" id="sound-volume-percent">70%</span>
+          </div>
+          <input type="range" id="sound-volume-slider" class="sound-volume-slider" min="0" max="100" value="70" step="5" aria-label="Volumen del efecto de papel">
+        </div>
+      </div>
+
       <button type="button" class="btn-action" id="btn-header-fullscreen" title="Pantalla Completa">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
       </button>

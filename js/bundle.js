@@ -11615,10 +11615,216 @@ class SimulationsLab {
 /* ======================== notebook-app.js ======================== */
 // notebook-app.js - Controlador del Cuaderno Virtual Universitario Argollado
 // Implementa navegación de pliegos de páginas abiertas (Left Page + Anillos Espiral + Right Page)
+// Efecto 3D Page Flip realista y motor de síntesis de sonido de papel Web Audio API
 
 
 
 
+
+// ================= MOTOR DE SÍNTESIS DE SONIDO DE PAPEL REALISTA =================
+class PaperSoundEngine {
+  constructor() {
+    this.ctx = null;
+    this.enabled = localStorage.getItem('fisica3_sound_enabled') !== 'false';
+    const savedVol = parseFloat(localStorage.getItem('fisica3_sound_volume'));
+    this.volume = !isNaN(savedVol) ? Math.min(1, Math.max(0, savedVol)) : 0.7;
+    this.hasUserInteracted = false;
+    this.setupListeners();
+  }
+
+  setupListeners() {
+    const unlock = () => {
+      this.hasUserInteracted = true;
+      if (!this.ctx) {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (AudioCtx) {
+          try {
+            this.ctx = new AudioCtx();
+          } catch (e) {}
+        }
+      } else if (this.ctx.state === 'suspended') {
+        this.ctx.resume().catch(() => {});
+      }
+    };
+
+    ['click', 'keydown', 'touchstart'].forEach(evt => {
+      window.addEventListener(evt, unlock, { once: false, passive: true });
+    });
+  }
+
+  bindUI() {
+    const toggleBtn = document.getElementById('btn-sound-toggle');
+    const volumeSlider = document.getElementById('sound-volume-slider');
+
+    if (toggleBtn) {
+      toggleBtn.onclick = (e) => {
+        e.stopPropagation();
+        this.hasUserInteracted = true;
+        this.ensureContext();
+        this.setEnabled(!this.enabled);
+        if (this.enabled && this.volume === 0) {
+          this.setVolume(0.7);
+        }
+      };
+    }
+
+    if (volumeSlider) {
+      volumeSlider.value = Math.round(this.volume * 100);
+      volumeSlider.oninput = (e) => {
+        this.hasUserInteracted = true;
+        this.ensureContext();
+        const val = parseInt(e.target.value, 10);
+        this.setVolume(val / 100);
+      };
+    }
+
+    this.updateUI();
+  }
+
+  ensureContext() {
+    if (!this.ctx) {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (AudioCtx) {
+        try {
+          this.ctx = new AudioCtx();
+        } catch (e) {}
+      }
+    }
+    if (this.ctx && this.ctx.state === 'suspended') {
+      this.ctx.resume().catch(() => {});
+    }
+    return this.ctx;
+  }
+
+  setEnabled(val) {
+    this.enabled = !!val;
+    localStorage.setItem('fisica3_sound_enabled', this.enabled ? 'true' : 'false');
+    this.updateUI();
+  }
+
+  setVolume(val) {
+    this.volume = Math.min(1, Math.max(0, parseFloat(val) || 0));
+    localStorage.setItem('fisica3_sound_volume', this.volume.toString());
+    if (this.volume > 0 && !this.enabled) {
+      this.enabled = true;
+      localStorage.setItem('fisica3_sound_enabled', 'true');
+    } else if (this.volume === 0 && this.enabled) {
+      this.enabled = false;
+      localStorage.setItem('fisica3_sound_enabled', 'false');
+    }
+    this.updateUI();
+  }
+
+  updateUI() {
+    const toggleBtn = document.getElementById('btn-sound-toggle');
+    const volumeSlider = document.getElementById('sound-volume-slider');
+    const percentEl = document.getElementById('sound-volume-percent');
+
+    if (volumeSlider) {
+      volumeSlider.value = Math.round(this.volume * 100);
+    }
+    if (percentEl) {
+      percentEl.textContent = `${Math.round(this.volume * 100)}%`;
+    }
+    if (toggleBtn) {
+      const iconOn = toggleBtn.querySelector('.sound-icon-on');
+      const iconOff = toggleBtn.querySelector('.sound-icon-off');
+      if (this.enabled && this.volume > 0) {
+        toggleBtn.classList.remove('is-muted');
+        toggleBtn.title = `Efecto de sonido de papel: Activado (${Math.round(this.volume * 100)}%)`;
+        toggleBtn.setAttribute('aria-label', `Efecto de sonido de papel activado al ${Math.round(this.volume * 100)} por ciento`);
+        if (iconOn) iconOn.style.display = 'inline-block';
+        if (iconOff) iconOff.style.display = 'none';
+      } else {
+        toggleBtn.classList.add('is-muted');
+        toggleBtn.title = 'Efecto de sonido de papel: Silenciado';
+        toggleBtn.setAttribute('aria-label', 'Efecto de sonido de papel silenciado');
+        if (iconOn) iconOn.style.display = 'none';
+        if (iconOff) iconOff.style.display = 'inline-block';
+      }
+    }
+  }
+
+  playPaperTurn(direction = 'next') {
+    if (!this.enabled || this.volume <= 0 || !this.hasUserInteracted) return;
+
+    try {
+      const ctx = this.ensureContext();
+      if (!ctx) return;
+
+      const now = ctx.currentTime;
+      const duration = 0.45; // 450 ms orgánico
+
+      // 1. Buffer de ruido rosa para la fricción de fibras de celulosa
+      const bufferSize = Math.floor(ctx.sampleRate * duration);
+      const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+      const output = buffer.getChannelData(0);
+      let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+      for (let i = 0; i < bufferSize; i++) {
+        const white = Math.random() * 2 - 1;
+        b0 = 0.99886 * b0 + white * 0.0555179;
+        b1 = 0.99332 * b1 + white * 0.0750759;
+        b2 = 0.96900 * b2 + white * 0.1538520;
+        b3 = 0.86650 * b3 + white * 0.3104856;
+        b4 = 0.55000 * b4 + white * 0.5329522;
+        b5 = -0.7616 * b5 - white * 0.0168980;
+        output[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362) * 0.12;
+        b6 = white * 0.115926;
+      }
+
+      const noiseSource = ctx.createBufferSource();
+      noiseSource.buffer = buffer;
+
+      // 2. Filtro paso banda dinámico con barrido suave
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'bandpass';
+      filter.Q.setValueAtTime(1.9, now);
+
+      const startFreq = direction === 'next' ? 950 : 1150;
+      const peakFreq = direction === 'next' ? 2250 : 2400;
+      const endFreq = 720;
+
+      filter.frequency.setValueAtTime(startFreq, now);
+      filter.frequency.exponentialRampToValueAtTime(peakFreq, now + 0.14);
+      filter.frequency.exponentialRampToValueAtTime(endFreq, now + duration);
+
+      // 3. Resonancia suave de baja frecuencia (cuerpo de la hoja de papel)
+      const osc = ctx.createOscillator();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(direction === 'next' ? 160 : 180, now);
+      osc.frequency.exponentialRampToValueAtTime(105, now + duration * 0.65);
+
+      const oscGain = ctx.createGain();
+      oscGain.gain.setValueAtTime(0.0001, now);
+      oscGain.gain.exponentialRampToValueAtTime(0.035 * this.volume, now + 0.05);
+      oscGain.gain.exponentialRampToValueAtTime(0.0001, now + duration * 0.65);
+
+      // 4. Envolvente de ganancia principal del roce de papel
+      const gainNode = ctx.createGain();
+      gainNode.gain.setValueAtTime(0.0001, now);
+      gainNode.gain.exponentialRampToValueAtTime(0.26 * this.volume, now + 0.045);
+      gainNode.gain.exponentialRampToValueAtTime(0.16 * this.volume, now + 0.20);
+      gainNode.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+
+      // Conexiones de nodos de audio
+      noiseSource.connect(filter);
+      filter.connect(gainNode);
+      gainNode.connect(ctx.destination);
+
+      osc.connect(oscGain);
+      oscGain.connect(ctx.destination);
+
+      // Ejecución temporizada
+      noiseSource.start(now);
+      noiseSource.stop(now + duration);
+      osc.start(now);
+      osc.stop(now + duration * 0.65);
+
+    } catch (e) {
+      console.warn('[PaperSoundEngine] No fue posible reproducir audio:', e);
+    }
+  }
+}
 
 class NotebookApp {
   constructor() {
@@ -11628,12 +11834,17 @@ class NotebookApp {
     this.mindMapInstance = null;
     this.timelineInstance = null;
     this.quizScores = JSON.parse(localStorage.getItem('fisica3_quiz_scores') || '{}');
+    this.soundEngine = new PaperSoundEngine();
+    this.isFlipping = false;
 
     this.bindDOM();
     this.renderCurrentSpread();
   }
 
   bindDOM() {
+    // Inicializar controles de sonido en la cabecera
+    this.soundEngine.bindUI();
+
     // Teclado: Flechas izquierda y derecha para pasar páginas
     window.addEventListener('keydown', (e) => {
       if (['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
@@ -11685,60 +11896,168 @@ class NotebookApp {
     }
   }
 
-  goToSpread(index) {
-    if (index >= 0 && index < this.totalSpreads) {
-      if (this.currentSpreadIndex === 8 && index !== 8) {
-        if (window.waveApp && typeof window.waveApp.pause === 'function') {
-          window.waveApp.pause();
-        }
-        if (window.__dopplerApp && typeof window.__dopplerApp.pause === 'function') {
-          window.__dopplerApp.pause();
-          if (window.__dopplerApp.audio) {
-            window.__dopplerApp.audio.setEnabled(false);
-            const btnAudio = document.getElementById('btnAudioToggle');
-            if (btnAudio) {
-              btnAudio.classList.remove('active');
-              btnAudio.setAttribute('aria-pressed', 'false');
-            }
+  goToSpread(index, skipAnimation = false) {
+    if (this.isFlipping) return;
+    if (index === this.currentSpreadIndex) return;
+    if (index < 0 || index >= this.totalSpreads) return;
+
+    const fromIndex = this.currentSpreadIndex;
+    const toIndex = index;
+    const direction = toIndex > fromIndex ? 'next' : 'prev';
+
+    // Detener simulaciones activas al salir del pliego
+    if (fromIndex === 8) {
+      if (window.waveApp && typeof window.waveApp.pause === 'function') {
+        window.waveApp.pause();
+      }
+      if (window.__dopplerApp && typeof window.__dopplerApp.pause === 'function') {
+        window.__dopplerApp.pause();
+        if (window.__dopplerApp.audio) {
+          window.__dopplerApp.audio.setEnabled(false);
+          const btnAudio = document.getElementById('btnAudioToggle');
+          if (btnAudio) {
+            btnAudio.classList.remove('active');
+            btnAudio.setAttribute('aria-pressed', 'false');
           }
         }
       }
-      if (this.currentSpreadIndex === 9 && index !== 9) {
-        this.destroySpread9Simulations();
-      }
+    }
+    if (fromIndex === 9) {
+      this.destroySpread9Simulations();
+    }
 
-      this.currentSpreadIndex = index;
+    // Reproducir sonido realista de papel pasando
+    if (this.soundEngine) {
+      this.soundEngine.playPaperTurn(direction);
+    }
+
+    // Comprobar si se ejecuta la transición 3D o cambio directo (en móviles)
+    const isMobile = window.innerWidth <= 860;
+    const book = document.querySelector('.spiral-notebook-book');
+
+    if (skipAnimation || isMobile || !book) {
+      this.currentSpreadIndex = toIndex;
       this.renderCurrentSpread();
       const pageLeft = document.getElementById('book-page-left');
       const pageRight = document.getElementById('book-page-right');
       if (pageLeft) pageLeft.scrollTop = 0;
       if (pageRight) pageRight.scrollTop = 0;
       window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
     }
+
+    // Ejecutar transición 3D Page Flip
+    this.executePageFlip(fromIndex, toIndex, direction);
+  }
+
+  // Ejecuta la animación física 3D con curvatura y sombras dinámicas
+  executePageFlip(fromIndex, toIndex, direction) {
+    const book = document.querySelector('.spiral-notebook-book');
+    const container = document.getElementById('notebook-reader-content');
+    if (!book || !container) {
+      this.currentSpreadIndex = toIndex;
+      this.renderCurrentSpread();
+      return;
+    }
+
+    this.isFlipping = true;
+    book.classList.add('is-page-flipping');
+
+    const fromData = this.getSpreadData(fromIndex);
+    const toData = this.getSpreadData(toIndex);
+
+    // Actualizar barra inferior e indicador superior de inmediato para respuesta táctil
+    this.updateBottomBar(toData.spreadTitle);
+
+    const pageLeft = document.getElementById('book-page-left');
+    const pageRight = document.getElementById('book-page-right');
+
+    const leaf = document.createElement('div');
+    const dropShadow = document.createElement('div');
+    dropShadow.className = 'flip-drop-shadow-base';
+
+    if (direction === 'next') {
+      // Avanzar: la página izquierda base muestra el pliego actual.
+      // La página derecha base ya contiene la página derecha del pliego destino (debajo de la hoja).
+      if (pageRight) {
+        pageRight.innerHTML = toData.rightHTML;
+        this.renderFormulasInNode(pageRight);
+      }
+      leaf.className = 'page-flip-leaf leaf-next';
+      leaf.innerHTML = `
+        <div class="flip-face flip-face-front book-page page-right">
+          <div class="flip-face-inner">${fromData.rightHTML}</div>
+          <div class="flip-lighting-overlay overlay-front"></div>
+        </div>
+        <div class="flip-face flip-face-back book-page page-left ${toIndex === 0 ? 'page-portada-left' : ''}">
+          <div class="flip-face-inner">${toData.leftHTML}</div>
+          <div class="flip-lighting-overlay overlay-back"></div>
+        </div>
+      `;
+    } else {
+      // Retroceder: la página derecha base muestra el pliego actual.
+      // La página izquierda base ya contiene la página izquierda del pliego destino.
+      if (pageLeft) {
+        if (toIndex === 0) {
+          pageLeft.className = 'book-page page-left page-portada-left';
+        } else {
+          pageLeft.className = 'book-page page-left';
+        }
+        pageLeft.innerHTML = toData.leftHTML;
+        this.renderFormulasInNode(pageLeft);
+      }
+      leaf.className = 'page-flip-leaf leaf-prev';
+      leaf.innerHTML = `
+        <div class="flip-face flip-face-front book-page page-left ${fromIndex === 0 ? 'page-portada-left' : ''}">
+          <div class="flip-face-inner">${fromData.leftHTML}</div>
+          <div class="flip-lighting-overlay overlay-front"></div>
+        </div>
+        <div class="flip-face flip-face-back book-page page-right">
+          <div class="flip-face-inner">${toData.rightHTML}</div>
+          <div class="flip-lighting-overlay overlay-back"></div>
+        </div>
+      `;
+    }
+
+    book.appendChild(leaf);
+    book.appendChild(dropShadow);
+    this.renderFormulasInNode(leaf);
+
+    // Disparar animación física en el siguiente cuadro de animación
+    requestAnimationFrame(() => {
+      leaf.classList.add('is-flipping');
+    });
+
+    // Conclusión de la transición a los 620ms
+    setTimeout(() => {
+      if (leaf && leaf.parentNode) leaf.parentNode.removeChild(leaf);
+      if (dropShadow && dropShadow.parentNode) dropShadow.parentNode.removeChild(dropShadow);
+      if (book) book.classList.remove('is-page-flipping');
+
+      this.currentSpreadIndex = toIndex;
+      this.renderCurrentSpread();
+      this.isFlipping = false;
+
+      const pLeft = document.getElementById('book-page-left');
+      const pRight = document.getElementById('book-page-right');
+      if (pLeft) pLeft.scrollTop = 0;
+      if (pRight) pRight.scrollTop = 0;
+    }, 620);
   }
 
   // Permite saltar a una unidad temática específica
   goToUnit(unitNumber) {
-    // Mapeo de unidades a pliegos:
-    // Pliego 2: Unidades 1 y 2
-    // Pliego 3: Unidades 3 y 4
-    // Pliego 4: Unidades 5 y 6
-    // Pliego 5: Unidades 7 y 8
-    // Pliego 6: Unidades 9 y 10
-    // Pliego 7: Unidades 11 y 12
     const spreadIndex = 1 + Math.floor((unitNumber - 1) / 2) + 1;
     this.goToSpread(spreadIndex);
   }
 
-  renderCurrentSpread() {
-    const container = document.getElementById('notebook-reader-content');
-    if (!container) return;
-
+  // Generador puro del contenido HTML de cada pliego
+  getSpreadData(index) {
     let leftHTML = '';
     let rightHTML = '';
     let spreadTitle = '';
 
-    switch (this.currentSpreadIndex) {
+    switch (index) {
       case 0:
         spreadTitle = "Páginas 01 y 02 &middot; Portada e Índice General";
         leftHTML = this.renderPage01Portada();
@@ -11795,6 +12114,18 @@ class NotebookApp {
         rightHTML = this.renderPage22GlosarioBiblio();
         break;
     }
+
+    return { leftHTML, rightHTML, spreadTitle };
+  }
+
+  renderCurrentSpread() {
+    const container = document.getElementById('notebook-reader-content');
+    if (!container) return;
+
+    const data = this.getSpreadData(this.currentSpreadIndex);
+    const leftHTML = data.leftHTML;
+    const rightHTML = data.rightHTML;
+    const spreadTitle = data.spreadTitle;
 
     // Renderizar cuaderno con espiral central y flechas laterales flotantes
     container.innerHTML = `
@@ -11875,10 +12206,6 @@ class NotebookApp {
         <div class="portada-image-frame">
           <img src="${NOTEBOOK_METADATA.coverImage}" alt="Portada Cuaderno de Física 3 UTP" onerror="this.style.display='none';">
         </div>
-        <button type="button" class="btn-open-interactive-book" onclick="event.stopPropagation(); window.notebookApp.goToSpread(1);">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
-          <span>Abrir Cuaderno Interactivo</span>
-        </button>
       </div>
     `;
   }
@@ -13101,6 +13428,7 @@ class NotebookApp {
   try { global.TimelineRenderer = TimelineRenderer; } catch(e) {}
   try { global.SimulationsLab = SimulationsLab; } catch(e) {}
   try { global.NotebookApp = NotebookApp; } catch(e) {}
+  try { global.PaperSoundEngine = PaperSoundEngine; } catch(e) {}
 
   /* ── Inicialización cuando el DOM esté listo ── */
   function initApp() {

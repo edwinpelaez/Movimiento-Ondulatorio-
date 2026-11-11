@@ -92,6 +92,7 @@ bundleContent += `
   try { global.TimelineRenderer = TimelineRenderer; } catch(e) {}
   try { global.SimulationsLab = SimulationsLab; } catch(e) {}
   try { global.NotebookApp = NotebookApp; } catch(e) {}
+  try { global.PaperSoundEngine = PaperSoundEngine; } catch(e) {}
 
   /* ── Inicialización cuando el DOM esté listo ── */
   function initApp() {
