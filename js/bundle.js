@@ -11836,22 +11836,182 @@ class NotebookApp {
     this.quizScores = JSON.parse(localStorage.getItem('fisica3_quiz_scores') || '{}');
     this.soundEngine = new PaperSoundEngine();
     this.isFlipping = false;
+    this.isOpen = false;        // El cuaderno inicia CERRADO con su portada
+    this.isOpening = false;
+    this.isClosing = false;
 
     this.bindDOM();
+    this.initClosedNotebookState();
+  }
+
+  // Establece la pantalla inicial con el cuaderno cerrado
+  initClosedNotebookState() {
+    const closedScreen = document.getElementById('closed-notebook-screen');
+    const openContainer = document.getElementById('view-notebook-container');
+    const btnClose = document.getElementById('btn-close-notebook');
+    const headerPill = document.getElementById('header-page-indicator');
+
+    if (closedScreen) {
+      closedScreen.classList.remove('is-hidden', 'is-animating-open', 'is-animating-close');
+    }
+    if (openContainer) {
+      openContainer.classList.add('is-hidden');
+      openContainer.classList.remove('is-revealed');
+    }
+    if (btnClose) {
+      btnClose.style.display = 'none';
+    }
+    if (headerPill) {
+      headerPill.textContent = 'Portada';
+    }
+
+    // Pre-renderizar el contenido del cuaderno en segundo plano
     this.renderCurrentSpread();
+  }
+
+  // Animación 3D realista de apertura del cuaderno
+  openNotebook(targetSpread = 0) {
+    if (this.isOpening || this.isOpen) return;
+    this.isOpening = true;
+
+    // Desbloquear audio del navegador y reproducir sonido realista de hoja
+    if (this.soundEngine) {
+      this.soundEngine.hasUserInteracted = true;
+      this.soundEngine.ensureContext();
+      this.soundEngine.playPaperTurn('next');
+    }
+
+    const closedScreen = document.getElementById('closed-notebook-screen');
+    const openContainer = document.getElementById('view-notebook-container');
+    const btnClose = document.getElementById('btn-close-notebook');
+    const headerPill = document.getElementById('header-page-indicator');
+
+    if (closedScreen) {
+      closedScreen.classList.add('is-animating-open');
+    }
+
+    // Duración de la animación: 1250ms (dentro del rango 1 - 1.5s)
+    setTimeout(() => {
+      if (closedScreen) {
+        closedScreen.classList.remove('is-animating-open');
+        closedScreen.classList.add('is-hidden');
+      }
+      if (openContainer) {
+        openContainer.classList.remove('is-hidden');
+        openContainer.classList.add('is-revealed');
+      }
+      if (btnClose) {
+        btnClose.style.display = 'inline-flex';
+      }
+
+      this.isOpen = true;
+      this.isOpening = false;
+
+      if (targetSpread !== 0) {
+        this.goToSpread(targetSpread, true);
+      } else {
+        this.currentSpreadIndex = 0;
+        this.renderCurrentSpread();
+      }
+
+      if (headerPill) {
+        headerPill.textContent = `Pág. ${this.currentSpreadIndex + 1} / ${this.totalSpreads}`;
+      }
+    }, 1250);
+  }
+
+  // Cierra el cuaderno y regresa a la portada 3D inicial
+  closeNotebook() {
+    if (this.isClosing || !this.isOpen) return;
+    this.isClosing = true;
+
+    // Detener simulaciones activas al cerrar el cuaderno
+    if (this.currentSpreadIndex === 8) {
+      if (window.waveApp && typeof window.waveApp.pause === 'function') {
+        window.waveApp.pause();
+      }
+      if (window.__dopplerApp && typeof window.__dopplerApp.pause === 'function') {
+        window.__dopplerApp.pause();
+        if (window.__dopplerApp.audio) {
+          window.__dopplerApp.audio.setEnabled(false);
+        }
+      }
+    }
+    if (this.currentSpreadIndex === 9) {
+      this.destroySpread9Simulations();
+    }
+
+    if (this.soundEngine) {
+      this.soundEngine.playPaperTurn('prev');
+    }
+
+    const closedScreen = document.getElementById('closed-notebook-screen');
+    const openContainer = document.getElementById('view-notebook-container');
+    const btnClose = document.getElementById('btn-close-notebook');
+    const headerPill = document.getElementById('header-page-indicator');
+
+    if (btnClose) {
+      btnClose.style.display = 'none';
+    }
+
+    if (closedScreen) {
+      closedScreen.classList.remove('is-hidden');
+      closedScreen.classList.add('is-animating-close');
+    }
+    if (openContainer) {
+      openContainer.classList.remove('is-revealed');
+      openContainer.classList.add('is-hidden');
+    }
+    if (headerPill) {
+      headerPill.textContent = 'Portada';
+    }
+
+    setTimeout(() => {
+      if (closedScreen) {
+        closedScreen.classList.remove('is-animating-close');
+      }
+      this.isOpen = false;
+      this.isClosing = false;
+      this.currentSpreadIndex = 0;
+    }, 1100);
   }
 
   bindDOM() {
     // Inicializar controles de sonido en la cabecera
     this.soundEngine.bindUI();
 
-    // Teclado: Flechas izquierda y derecha para pasar páginas
+    // Controles de Apertura y Cierre del Cuaderno
+    const btnOpen = document.getElementById('btn-open-notebook');
+    const closedCard = document.getElementById('closed-notebook-card');
+    const btnClose = document.getElementById('btn-close-notebook');
+
+    if (btnOpen) btnOpen.onclick = () => this.openNotebook(0);
+    if (closedCard) {
+      closedCard.onclick = () => this.openNotebook(0);
+      closedCard.onkeydown = (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          this.openNotebook(0);
+        }
+      };
+    }
+    if (btnClose) btnClose.onclick = () => this.closeNotebook();
+
+    // Teclado: Flechas izquierda y derecha para pasar páginas (solo si está abierto)
     window.addEventListener('keydown', (e) => {
       if (['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
+      if (!this.isOpen) {
+        if (e.key === 'Enter' || e.key === 'ArrowRight' || e.key === ' ') {
+          this.openNotebook(0);
+        }
+        return;
+      }
       if (e.key === 'ArrowRight') {
         this.nextSpread();
       } else if (e.key === 'ArrowLeft') {
         this.prevSpread();
+      } else if (e.key === 'Escape') {
+        this.closeNotebook();
       }
     });
 
@@ -11864,7 +12024,15 @@ class NotebookApp {
 
     if (btnPrev) btnPrev.onclick = () => this.prevSpread();
     if (btnNext) btnNext.onclick = () => this.nextSpread();
-    if (btnHome) btnHome.onclick = () => this.goToSpread(0);
+    if (btnHome) {
+      btnHome.onclick = () => {
+        if (this.currentSpreadIndex === 0) {
+          this.closeNotebook();
+        } else {
+          this.goToSpread(0);
+        }
+      };
+    }
 
     if (spreadSelect) {
       spreadSelect.onchange = (e) => {
@@ -11898,6 +12066,13 @@ class NotebookApp {
 
   goToSpread(index, skipAnimation = false) {
     if (this.isFlipping) return;
+
+    // Si el cuaderno está cerrado, abrirlo directamente en el pliego solicitado
+    if (!this.isOpen) {
+      this.openNotebook(index);
+      return;
+    }
+
     if (index === this.currentSpreadIndex) return;
     if (index < 0 || index >= this.totalSpreads) return;
 
@@ -13231,7 +13406,13 @@ class NotebookApp {
     const headerPill = document.getElementById('header-page-indicator');
 
     if (spreadSelect) spreadSelect.value = String(this.currentSpreadIndex);
-    if (headerPill) headerPill.textContent = `Pág. ${this.currentSpreadIndex + 1} / ${this.totalSpreads}`;
+    if (headerPill) {
+      if (this.isOpen) {
+        headerPill.textContent = `Pág. ${this.currentSpreadIndex + 1} / ${this.totalSpreads}`;
+      } else {
+        headerPill.textContent = 'Portada';
+      }
+    }
 
     const isFirst = this.currentSpreadIndex === 0;
     const isLast = this.currentSpreadIndex === this.totalSpreads - 1;
